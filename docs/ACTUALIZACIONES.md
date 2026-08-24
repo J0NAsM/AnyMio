@@ -57,7 +57,12 @@ O usa una sola vez el argumento `--update-manifest-url`:
 .\dist\JRemote.exe --update-manifest-url "https://tu-dominio.example/update.json"
 ```
 
-Para instalar una actualización ya detectada, ejecuta:
+En la ventana local, pulsa **Buscar actualizaciones ahora** y, si aparece una
+versión verificada, **Descargar e instalar**. La aplicación cierra su ventana
+después de iniciar el ayudante para permitir el reemplazo seguro.
+
+Como alternativa de consola, para instalar una actualización ya detectada,
+ejecuta:
 
 ```powershell
 .\JRemote.exe --install-update

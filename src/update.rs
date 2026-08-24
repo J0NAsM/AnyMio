@@ -17,7 +17,7 @@ struct UpdateManifest {
     notes: Option<String>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AvailableUpdate {
     pub version: String,
     pub url: String,

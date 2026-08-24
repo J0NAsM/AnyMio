@@ -34,9 +34,10 @@ descarga. Consulta [la guía de actualizaciones](docs/ACTUALIZACIONES.md) para
 publicar el manifiesto y configurar su URL.
 
 Las versiones publicadas incluyen `JRemote.exe` y `JRemoteUpdater.exe`. Cuando
-existe un manifiesto más nuevo con SHA-256 válido, el usuario puede instalarlo
-con `JRemote.exe --install-update`; el ayudante descarga, verifica y reemplaza
-el binario una vez que la aplicación se cierra.
+existe un manifiesto más nuevo con SHA-256 válido, la ventana local ofrece el
+botón **Descargar e instalar**; en consola también puede usarse
+`JRemote.exe --install-update`. El ayudante descarga, verifica y reemplaza el
+binario una vez que la aplicación se cierra.
 
 ## Automatización
 

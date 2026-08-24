@@ -39,6 +39,7 @@ pub fn run(
                 consent_device_draft: String::new(),
                 manifest_url,
                 update_result: None,
+                available_update: None,
                 status: None,
             }))
         }),
@@ -55,8 +56,15 @@ struct AnyMioApp {
     device_name_draft: String,
     consent_device_draft: String,
     manifest_url: String,
-    update_result: Option<Receiver<String>>,
+    update_result: Option<Receiver<UpdateCheckResult>>,
+    available_update: Option<update::AvailableUpdate>,
     status: Option<String>,
+}
+
+enum UpdateCheckResult {
+    Available(update::AvailableUpdate),
+    Current,
+    Failed(String),
 }
 
 impl AnyMioApp {
@@ -74,16 +82,19 @@ impl AnyMioApp {
         let url = self.manifest_url.clone();
         let (sender, receiver) = mpsc::channel();
         std::thread::spawn(move || {
-            let message = match tokio::runtime::Runtime::new() {
+            let result = match tokio::runtime::Runtime::new() {
                 Ok(runtime) => match runtime.block_on(update::check(&url)) {
-                    Ok(Some(release)) => format!("Nueva versión {} disponible.", release.version),
-                    Ok(None) => "Ya tienes la versión más reciente.".into(),
-                    Err(error) => format!("No se pudo comprobar: {error}"),
+                    Ok(Some(release)) => UpdateCheckResult::Available(release),
+                    Ok(None) => UpdateCheckResult::Current,
+                    Err(error) => UpdateCheckResult::Failed(error.to_string()),
                 },
-                Err(error) => format!("No se pudo iniciar la comprobación: {error}"),
+                Err(error) => UpdateCheckResult::Failed(format!(
+                    "No se pudo iniciar la comprobación: {error}"
+                )),
             };
-            let _ = sender.send(message);
+            let _ = sender.send(result);
         });
+        self.available_update = None;
         self.status = Some("Buscando actualizaciones…".into());
         self.update_result = Some(receiver);
     }
@@ -114,7 +125,16 @@ impl AnyMioApp {
 impl eframe::App for AnyMioApp {
     fn update(&mut self, context: &egui::Context, _: &mut eframe::Frame) {
         if let Some(receiver) = &self.update_result {
-            if let Ok(message) = receiver.try_recv() {
+            if let Ok(result) = receiver.try_recv() {
+                let message = match result {
+                    UpdateCheckResult::Available(release) => {
+                        let version = release.version.clone();
+                        self.available_update = Some(release);
+                        format!("Nueva versión {version} disponible.")
+                    }
+                    UpdateCheckResult::Current => "Ya tienes la versión más reciente.".into(),
+                    UpdateCheckResult::Failed(error) => format!("No se pudo comprobar: {error}"),
+                };
                 let _ = events::append(&self.data_dir, "update_check_manual", &message);
                 self.status = Some(message);
                 self.update_result = None;
@@ -149,9 +169,27 @@ impl eframe::App for AnyMioApp {
                     ui.selectable_value(&mut self.config.language, Language::Spanish, "Español");
                     ui.selectable_value(&mut self.config.language, Language::English, "English");
                 });
-            ui.label("Las instalaciones de versiones verificadas se realizan con --install-update.");
             if ui.button("Buscar actualizaciones ahora").clicked() && self.update_result.is_none() {
                 self.check_updates();
+            }
+            if let Some(release) = self.available_update.as_ref().cloned()
+                && ui
+                    .button(format!("Descargar e instalar {}", release.version))
+                    .clicked()
+            {
+                match crate::start_update(&release) {
+                    Ok(()) => {
+                        let _ = events::append(
+                            &self.data_dir,
+                            "update_install_started",
+                            &release.version,
+                        );
+                        context.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+                    Err(error) => {
+                        self.status = Some(format!("No se pudo iniciar la actualización: {error}"));
+                    }
+                }
             }
             if ui.button("Guardar preferencias").clicked() {
                 self.save("update channel, language or startup preference changed");

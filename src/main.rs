@@ -250,6 +250,14 @@ fn install_update(release: Option<update::AvailableUpdate>) -> Result<()> {
         println!("JRemote ya est\u{00e1} actualizado.");
         return Ok(());
     };
+    start_update(&release)?;
+    println!(
+        "La actualizaci\u{00f3}n se descargar\u{00e1} y verificar\u{00e1} al cerrar esta ventana."
+    );
+    Ok(())
+}
+
+pub(crate) fn start_update(release: &update::AvailableUpdate) -> Result<()> {
     let executable =
         env::current_exe().context("could not determine the JRemote executable path")?;
     let updater = executable
@@ -268,9 +276,6 @@ fn install_update(release: Option<update::AvailableUpdate>) -> Result<()> {
         .arg(&release.sha256)
         .spawn()
         .context("could not start the update helper")?;
-    println!(
-        "La actualizaci\u{00f3}n se descargar\u{00e1} y verificar\u{00e1} al cerrar esta ventana."
-    );
     Ok(())
 }
 
