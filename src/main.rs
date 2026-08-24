@@ -1,3 +1,4 @@
+mod config;
 mod identity;
 mod protocol;
 mod relay;
@@ -59,7 +60,13 @@ async fn main() -> Result<()> {
         );
         Relay::bind(address).await?.serve().await
     } else {
-        let available_update = update::check(&configured_update_manifest_url(&args)).await;
+        let data_dir = identity::application_data_dir(args.data_dir.clone())?;
+        let config = config::AppConfig::load_or_create(&data_dir)?;
+        let available_update = if config.check_updates_at_startup || args.install_update {
+            update::check(&configured_update_manifest_url(&args)).await
+        } else {
+            Ok(None)
+        };
         if args.install_update {
             return install_update(available_update?);
         }
@@ -68,6 +75,7 @@ async fn main() -> Result<()> {
             .context("could not load the local device identity")?;
         println!("JRemote {}", update::CURRENT_VERSION);
         println!("This device ID: {}", identity.public_id_formatted());
+        println!("Known devices: {}", config.known_devices.len());
         println!("No remote session is active.");
         println!("The GUI/capture endpoint is not yet included in this build.");
         match available_update {

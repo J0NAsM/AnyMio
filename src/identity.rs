@@ -28,7 +28,7 @@ pub struct DeviceIdentity {
 
 impl DeviceIdentity {
     pub fn load_or_create(explicit_dir: Option<PathBuf>) -> Result<Self> {
-        let dir = identity_dir(explicit_dir)?;
+        let dir = application_data_dir(explicit_dir)?;
         fs::create_dir_all(&dir).context("could not create identity directory")?;
         let path = dir.join(IDENTITY_FILE);
         if path.exists() {
@@ -48,7 +48,7 @@ impl DeviceIdentity {
 
     #[cfg(test)]
     pub fn reset(explicit_dir: Option<PathBuf>) -> Result<Self> {
-        let dir = identity_dir(explicit_dir)?;
+        let dir = application_data_dir(explicit_dir)?;
         fs::create_dir_all(&dir).context("could not create identity directory")?;
         Self::create_in(dir)
     }
@@ -108,7 +108,7 @@ pub fn device_id_from_public_key(public_key: &[u8; 32]) -> u32 {
     (u64::from_be_bytes(first_eight) % 900_000_000) as u32 + 100_000_000
 }
 
-fn identity_dir(explicit_dir: Option<PathBuf>) -> Result<PathBuf> {
+pub fn application_data_dir(explicit_dir: Option<PathBuf>) -> Result<PathBuf> {
     explicit_dir.map(Ok).unwrap_or_else(|| {
         ProjectDirs::from("org", "JRemote", "JRemote")
             .context("could not determine a user data directory")
