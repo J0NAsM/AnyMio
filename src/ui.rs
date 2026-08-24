@@ -1,17 +1,35 @@
+use std::path::PathBuf;
+
 use anyhow::Result;
 use eframe::egui;
 
-use crate::{config::AppConfig, identity::DeviceIdentity, update};
+use crate::{
+    config::{AppConfig, KnownDevice, Language, UpdateChannel},
+    events,
+    identity::DeviceIdentity,
+    update,
+};
 
-pub fn run(identity: DeviceIdentity, config: AppConfig) -> Result<()> {
+pub fn run(identity: DeviceIdentity, config: AppConfig, data_dir: PathBuf) -> Result<()> {
+    let relay_draft = config.relay_url.clone().unwrap_or_default();
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([760.0, 540.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([760.0, 600.0]),
         ..Default::default()
     };
     eframe::run_native(
         "AnyMio",
         options,
-        Box::new(|_| Ok(Box::new(AnyMioApp { identity, config }))),
+        Box::new(|_| {
+            Ok(Box::new(AnyMioApp {
+                identity,
+                config,
+                data_dir,
+                relay_draft,
+                device_id_draft: String::new(),
+                device_name_draft: String::new(),
+                status: None,
+            }))
+        }),
     )
     .map_err(|error| anyhow::anyhow!("could not open the AnyMio window: {error}"))
 }
@@ -19,6 +37,23 @@ pub fn run(identity: DeviceIdentity, config: AppConfig) -> Result<()> {
 struct AnyMioApp {
     identity: DeviceIdentity,
     config: AppConfig,
+    data_dir: PathBuf,
+    relay_draft: String,
+    device_id_draft: String,
+    device_name_draft: String,
+    status: Option<String>,
+}
+
+impl AnyMioApp {
+    fn save(&mut self, detail: &str) {
+        match self.config.save(&self.data_dir) {
+            Ok(()) => {
+                let _ = events::append(&self.data_dir, "configuration_saved", detail);
+                self.status = Some("Configuración guardada.".into());
+            }
+            Err(error) => self.status = Some(format!("No se pudo guardar: {error}")),
+        }
+    }
 }
 
 impl eframe::App for AnyMioApp {
@@ -34,28 +69,71 @@ impl eframe::App for AnyMioApp {
             ui.separator();
 
             ui.heading("Actualizaciones");
-            ui.label(format!("Canal: {:?}", self.config.update_channel));
-            ui.label(if self.config.check_updates_at_startup {
-                "Se comprobarán al iniciar."
-            } else {
-                "La comprobación automática está desactivada."
-            });
-            ui.label("Usa el comando --install-update para instalar una versión verificada.");
+            ui.checkbox(
+                &mut self.config.check_updates_at_startup,
+                "Buscar actualizaciones al iniciar",
+            );
+            egui::ComboBox::from_label("Canal")
+                .selected_text(format!("{:?}", self.config.update_channel))
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.config.update_channel, UpdateChannel::Stable, "Estable");
+                    ui.selectable_value(&mut self.config.update_channel, UpdateChannel::Beta, "Beta");
+                });
+            egui::ComboBox::from_label("Idioma")
+                .selected_text(format!("{:?}", self.config.language))
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.config.language, Language::Spanish, "Español");
+                    ui.selectable_value(&mut self.config.language, Language::English, "English");
+                });
+            ui.label("Las instalaciones de versiones verificadas se realizan con --install-update.");
             ui.separator();
 
-            ui.heading("Relay y dispositivos");
-            ui.label(self.config.relay_url.as_deref().unwrap_or("Relay no configurado."));
-            if self.config.known_devices.is_empty() {
-                ui.label("No hay dispositivos conocidos todavía.");
-            } else {
-                for device in &self.config.known_devices {
-                    ui.label(format!("{} — {}", device.display_name, device.public_id));
+            ui.heading("Relay");
+            ui.horizontal(|ui| {
+                ui.label("URL:");
+                ui.text_edit_singleline(&mut self.relay_draft);
+                if ui.button("Guardar relay").clicked() {
+                    self.config.relay_url = (!self.relay_draft.trim().is_empty())
+                        .then(|| self.relay_draft.trim().to_owned());
+                    self.save("relay configuration changed");
                 }
+            });
+            ui.separator();
+
+            ui.heading("Dispositivos conocidos");
+            ui.horizontal(|ui| {
+                ui.label("Nombre");
+                ui.text_edit_singleline(&mut self.device_name_draft);
+                ui.label("ID");
+                ui.text_edit_singleline(&mut self.device_id_draft);
+                if ui.button("Guardar dispositivo").clicked() {
+                    let result = self.config.add_or_update_device(KnownDevice {
+                        public_id: self.device_id_draft.trim().to_owned(),
+                        display_name: self.device_name_draft.trim().to_owned(),
+                        public_key_fingerprint: None,
+                        last_seen_unix: None,
+                    });
+                    match result {
+                        Ok(()) => {
+                            self.device_id_draft.clear();
+                            self.device_name_draft.clear();
+                            self.save("known device saved");
+                        }
+                        Err(error) => self.status = Some(format!("Dispositivo inválido: {error}")),
+                    }
+                }
+            });
+            for device in &self.config.known_devices {
+                ui.label(format!("{} — {}", device.display_name, device.public_id));
+            }
+            if let Some(status) = &self.status {
+                ui.separator();
+                ui.label(status);
             }
             ui.separator();
             ui.colored_label(
                 egui::Color32::YELLOW,
-                "No hay ninguna sesión remota activa. El acceso remoto requiere consentimiento y cifrado E2E antes de habilitarse.",
+                "No hay sesión remota activa. El acceso remoto requiere consentimiento y cifrado E2E antes de habilitarse.",
             );
         });
     }

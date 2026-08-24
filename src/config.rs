@@ -84,7 +84,6 @@ impl AppConfig {
         fs::rename(temporary, dir.join(CONFIG_FILE)).context("could not save config atomically")
     }
 
-    #[allow(dead_code)]
     pub fn add_or_update_device(&mut self, device: KnownDevice) -> Result<()> {
         if device.public_id.trim().is_empty() || device.display_name.trim().is_empty() {
             bail!("a known device requires an ID and display name");
