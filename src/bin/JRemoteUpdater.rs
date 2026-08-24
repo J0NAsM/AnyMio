@@ -139,8 +139,10 @@ async fn download_and_verify(url: &str, expected_sha256: &str, destination: &Pat
     let mut file = tokio::fs::File::create(destination)
         .await
         .context("could not create the temporary update file")?;
+    let total = response.content_length();
     let mut stream = response.bytes_stream();
     let mut downloaded = 0_u64;
+    let mut last_reported_percent = None;
     let mut hasher = Sha256::new();
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.context("the update download was interrupted")?;
@@ -154,6 +156,24 @@ async fn download_and_verify(url: &str, expected_sha256: &str, destination: &Pat
         file.write_all(&chunk)
             .await
             .context("could not save the update")?;
+        match total {
+            Some(total) => {
+                let percent = downloaded.saturating_mul(100) / total.max(1);
+                if last_reported_percent
+                    .is_none_or(|previous| percent >= previous + 10 || percent == 100)
+                {
+                    println!("Descargando actualización: {percent}%");
+                    last_reported_percent = Some(percent);
+                }
+            }
+            None if downloaded % (5 * 1024 * 1024) < chunk.len() as u64 => {
+                println!(
+                    "Descargando actualización: {} MiB",
+                    downloaded / (1024 * 1024)
+                );
+            }
+            None => {}
+        }
     }
     file.flush()
         .await
