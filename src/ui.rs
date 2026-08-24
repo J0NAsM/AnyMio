@@ -8,7 +8,7 @@ use eframe::egui;
 
 use crate::{
     config::{AppConfig, KnownDevice, Language, UpdateChannel},
-    consent::ConsentStore,
+    consent::{ConsentStatus, ConsentStore},
     events,
     identity::DeviceIdentity,
     update,
@@ -86,6 +86,28 @@ impl AnyMioApp {
         });
         self.status = Some("Buscando actualizaciones…".into());
         self.update_result = Some(receiver);
+    }
+
+    fn resolve_consent(&mut self, id: uuid::Uuid, approved: bool) {
+        match ConsentStore::load(&self.data_dir).and_then(|mut store| {
+            store.resolve(id, approved)?;
+            store.save(&self.data_dir)
+        }) {
+            Ok(()) => {
+                let action = if approved {
+                    "consent_approved"
+                } else {
+                    "consent_denied"
+                };
+                let _ = events::append(&self.data_dir, action, &id.to_string());
+                self.status = Some(if approved {
+                    "Solicitud aprobada localmente.".into()
+                } else {
+                    "Solicitud rechazada localmente.".into()
+                });
+            }
+            Err(error) => self.status = Some(format!("No se pudo resolver la solicitud: {error}")),
+        }
     }
 }
 
@@ -207,10 +229,24 @@ impl eframe::App for AnyMioApp {
                     }
                 }
             });
+            let mut consent_action = None;
             if let Ok(store) = ConsentStore::load(&self.data_dir) {
                 for request in store.requests.iter().rev().take(5) {
-                    ui.label(format!("{} — {:?}", request.requester_device_id, request.status));
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{} — {:?}", request.requester_device_id, request.status));
+                        if request.status == ConsentStatus::Pending {
+                            if ui.button("Aprobar").clicked() {
+                                consent_action = Some((request.id, true));
+                            }
+                            if ui.button("Rechazar").clicked() {
+                                consent_action = Some((request.id, false));
+                            }
+                        }
+                    });
                 }
+            }
+            if let Some((id, approved)) = consent_action {
+                self.resolve_consent(id, approved);
             }
             if let Some(status) = &self.status {
                 ui.separator();
