@@ -28,3 +28,8 @@ El repositorio público y la cuenta con permiso de publicar releases forman part
 de la cadena de confianza. El hash evita corrupción o un enlace equivocado, pero
 no reemplaza una firma de código. La siguiente mejora de seguridad recomendada
 es firmar `JRemote.exe`, `JRemoteUpdater.exe` y el instalador con Authenticode.
+
+El workflow de Release admite esa firma sin exponer el certificado: configura
+los secretos `WINDOWS_CERTIFICATE_BASE64` y `WINDOWS_CERTIFICATE_PASSWORD` en
+GitHub. Si no están presentes, publica artefactos sin firma y lo declara en el
+log del workflow.

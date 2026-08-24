@@ -30,6 +30,21 @@ jobs:
         run: |
           choco install nsis -y --no-progress
           makensis /DVERSION=$($env:GITHUB_REF_NAME.TrimStart('v')) installer/AnyMio.nsi
+      - name: Optionally sign Windows artifacts
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_BASE64)) {
+            Write-Host 'No signing certificate configured; publishing unsigned artifacts.'
+            exit 0
+          }
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'anymio-signing.pfx'
+          [System.IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_BASE64))
+          $certificate = Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password (ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force)
+          Get-ChildItem target/release/JRemote.exe, target/release/JRemoteUpdater.exe, installer/AnyMio-Setup-$($env:GITHUB_REF_NAME.TrimStart('v')).exe | ForEach-Object { Set-AuthenticodeSignature -FilePath $_ -Certificate $certificate | Out-Null }
+          Remove-Item -LiteralPath $pfxPath -Force
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
