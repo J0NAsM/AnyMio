@@ -76,3 +76,10 @@ El workflow `.github/workflows/release.yml` se ejecuta al subir una etiqueta
 instalador NSIS, crea el Release y actualiza el manifiesto con el hash real. El
 script local `scripts/Prepare-Release.ps1` ofrece el mismo preparado antes de
 crear una etiqueta manualmente.
+
+## Canales
+
+El canal **Estable** consulta `update.json`; el canal **Beta** consulta
+`update-beta.json`. La preferencia se guarda localmente y la interfaz permite
+seleccionarla. Ambos manifiestos siguen exigiendo HTTPS y SHA-256 para una
+versión que sea más nueva que la instalada.

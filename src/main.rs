@@ -144,7 +144,7 @@ async fn main() -> Result<()> {
         }
         if args.diagnostics {
             for result in diagnostics::run(
-                &configured_update_manifest_url(&args),
+                &configured_update_manifest_url(&args, &config.update_channel),
                 config.relay_url.as_deref(),
             )
             .await
@@ -165,7 +165,11 @@ async fn main() -> Result<()> {
             return ui::run(identity, config, data_dir);
         }
         let available_update = if config.check_updates_at_startup || args.install_update {
-            update::check(&configured_update_manifest_url(&args)).await
+            update::check(&configured_update_manifest_url(
+                &args,
+                &config.update_channel,
+            ))
+            .await
         } else {
             Ok(None)
         };
@@ -195,7 +199,7 @@ async fn main() -> Result<()> {
     }
 }
 
-fn configured_update_manifest_url(args: &Args) -> String {
+fn configured_update_manifest_url(args: &Args, channel: &config::UpdateChannel) -> String {
     args.update_manifest_url
         .clone()
         .or_else(|| {
@@ -204,7 +208,12 @@ fn configured_update_manifest_url(args: &Args) -> String {
                 .filter(|value| !value.trim().is_empty())
         })
         .or_else(|| BUILT_IN_UPDATE_MANIFEST_URL.map(str::to_owned))
-        .unwrap_or_else(|| DEFAULT_UPDATE_MANIFEST_URL.to_owned())
+        .unwrap_or_else(|| match channel {
+            config::UpdateChannel::Stable => DEFAULT_UPDATE_MANIFEST_URL.to_owned(),
+            config::UpdateChannel::Beta => {
+                DEFAULT_UPDATE_MANIFEST_URL.replace("update.json", "update-beta.json")
+            }
+        })
 }
 
 fn show_update_message(release: &update::AvailableUpdate) {
@@ -270,8 +279,31 @@ mod tests {
             import_config: None,
         };
         assert_eq!(
-            configured_update_manifest_url(&args),
+            configured_update_manifest_url(&args, &config::UpdateChannel::Stable),
             "https://example.com/update.json"
+        );
+    }
+
+    #[test]
+    fn beta_channel_uses_its_own_default_manifest() {
+        let args = Args {
+            relay: false,
+            port: 4433,
+            data_dir: None,
+            update_manifest_url: None,
+            install_update: false,
+            ui: false,
+            diagnostics: false,
+            request_consent: None,
+            approve_consent: None,
+            deny_consent: None,
+            list_consents: false,
+            export_config: None,
+            import_config: None,
+        };
+        assert!(
+            configured_update_manifest_url(&args, &config::UpdateChannel::Beta)
+                .ends_with("update-beta.json")
         );
     }
 }
