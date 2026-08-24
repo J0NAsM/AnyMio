@@ -17,7 +17,12 @@ mod ui;
 mod update;
 mod update_cache;
 
-use std::{env, net::SocketAddr, path::PathBuf, process::Command};
+use std::{
+    env,
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use anyhow::{Context, Result, bail};
 use clap::Parser;
@@ -40,6 +45,9 @@ struct Args {
     /// Store the generated local identity in this explicit directory.
     #[arg(long, hide = true)]
     data_dir: Option<PathBuf>,
+    /// Keep identity, settings and logs beside the executable (for the portable edition).
+    #[arg(long)]
+    portable: bool,
     /// HTTPS URL of the release manifest. It overrides the environment setting.
     #[arg(long, value_name = "URL")]
     update_manifest_url: Option<String>,
@@ -106,7 +114,7 @@ async fn main() -> Result<()> {
         );
         Relay::bind(address).await?.serve().await
     } else {
-        let data_dir = identity::application_data_dir(args.data_dir.clone())?;
+        let data_dir = selected_data_dir(&args)?;
         let mut config = config::AppConfig::load_or_create(&data_dir)?;
         let _ = events::append(
             &data_dir,
@@ -224,7 +232,7 @@ async fn main() -> Result<()> {
             return Ok(());
         }
         if args.ui {
-            let identity = DeviceIdentity::load_or_create(args.data_dir.clone())
+            let identity = DeviceIdentity::load_or_create(Some(data_dir.clone()))
                 .context("could not load the local device identity")?;
             let manifest_url = configured_update_manifest_url(&args, &config.update_channel);
             return ui::run(identity, config, data_dir, manifest_url);
@@ -251,7 +259,7 @@ async fn main() -> Result<()> {
             return rollback_update();
         }
 
-        let identity = DeviceIdentity::load_or_create(args.data_dir.clone())
+        let identity = DeviceIdentity::load_or_create(Some(data_dir.clone()))
             .context("could not load the local device identity")?;
         println!("JRemote {}", update::CURRENT_VERSION);
         println!("This device ID: {}", identity.public_id_formatted());
@@ -271,6 +279,27 @@ async fn main() -> Result<()> {
         }
         Ok(())
     }
+}
+
+fn selected_data_dir(args: &Args) -> Result<PathBuf> {
+    if let Some(dir) = args.data_dir.clone() {
+        return Ok(dir);
+    }
+    let executable = env::current_exe().context("could not locate the executable")?;
+    let is_portable_package = executable
+        .parent()
+        .is_some_and(|directory| directory.join("portable.json").is_file());
+    if args.portable || is_portable_package {
+        return portable_data_dir(&executable);
+    }
+    identity::application_data_dir(None)
+}
+
+fn portable_data_dir(executable: &Path) -> Result<PathBuf> {
+    executable
+        .parent()
+        .context("portable executable has no parent directory")
+        .map(|directory| directory.join("data"))
 }
 
 fn configured_update_manifest_url(args: &Args, channel: &config::UpdateChannel) -> String {
@@ -366,6 +395,7 @@ mod tests {
             relay: false,
             port: 4433,
             data_dir: None,
+            portable: false,
             update_manifest_url: Some("https://example.com/update.json".into()),
             install_update: false,
             rollback_update: false,
@@ -393,6 +423,7 @@ mod tests {
             relay: false,
             port: 4433,
             data_dir: None,
+            portable: false,
             update_manifest_url: None,
             install_update: false,
             rollback_update: false,
@@ -411,6 +442,15 @@ mod tests {
         assert!(
             configured_update_manifest_url(&args, &config::UpdateChannel::Beta)
                 .ends_with("update-beta.json")
+        );
+    }
+
+    #[test]
+    fn portable_data_is_kept_next_to_the_executable() {
+        let executable = Path::new("C:/Portable/AnyMio/JRemote.exe");
+        assert_eq!(
+            portable_data_dir(executable).unwrap(),
+            PathBuf::from("C:/Portable/AnyMio/data")
         );
     }
 }

@@ -1,4 +1,6 @@
 /target/
 /dist/
 /installer/*.exe
+/portable/*.zip
+/portable/data/
 *.log

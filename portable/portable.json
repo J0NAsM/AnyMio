@@ -1,0 +1,5 @@
+{
+  "portable": true,
+  "data_directory": "data",
+  "description": "AnyMio portable edition: all local data remains in this folder."
+}
