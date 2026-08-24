@@ -117,6 +117,16 @@ impl AppConfig {
         self.validate()
     }
 
+    pub fn remove_device(&mut self, public_id: &str) -> Result<()> {
+        let before = self.known_devices.len();
+        self.known_devices
+            .retain(|device| device.public_id != public_id);
+        if self.known_devices.len() == before {
+            bail!("unknown known device");
+        }
+        Ok(())
+    }
+
     fn validate(&self) -> Result<()> {
         if self.version > CONFIG_VERSION {
             bail!("the configuration was created by a newer JRemote version");
@@ -186,5 +196,20 @@ mod tests {
             AppConfig::import_from(&export).unwrap().version,
             CONFIG_VERSION
         );
+    }
+
+    #[test]
+    fn removes_known_devices_by_public_id() {
+        let mut config = AppConfig::default();
+        config
+            .add_or_update_device(KnownDevice {
+                public_id: "123".into(),
+                display_name: "Equipo".into(),
+                public_key_fingerprint: None,
+                last_seen_unix: None,
+            })
+            .unwrap();
+        config.remove_device("123").unwrap();
+        assert!(config.known_devices.is_empty());
     }
 }

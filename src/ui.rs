@@ -171,8 +171,21 @@ impl eframe::App for AnyMioApp {
                     }
                 }
             });
+            let mut forget_device = None;
             for device in &self.config.known_devices {
-                ui.label(format!("{} — {}", device.display_name, device.public_id));
+                ui.horizontal(|ui| {
+                    ui.label(format!("{} — {}", device.display_name, device.public_id));
+                    if ui.button("Olvidar").clicked() { forget_device = Some(device.public_id.clone()); }
+                });
+            }
+            if let Some(device_id) = forget_device {
+                match self.config.remove_device(&device_id) {
+                    Ok(()) => {
+                        let _ = events::append(&self.data_dir, "known_device_forgotten", &device_id);
+                        self.save("known device removed");
+                    }
+                    Err(error) => self.status = Some(format!("No se pudo eliminar dispositivo: {error}")),
+                }
             }
             ui.separator();
             ui.heading("Consentimiento local");

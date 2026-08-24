@@ -67,6 +67,9 @@ struct Args {
     /// Validate and replace the local non-secret configuration from JSON.
     #[arg(long, value_name = "PATH")]
     import_config: Option<PathBuf>,
+    /// Forget one known device by its public ID.
+    #[arg(long, value_name = "DEVICE_ID")]
+    forget_device: Option<String>,
 }
 
 // The publisher can set this at build time. A command-line URL or runtime
@@ -109,6 +112,13 @@ async fn main() -> Result<()> {
             config.save(&data_dir)?;
             let _ = events::append(&data_dir, "config_imported", &path.display().to_string());
             println!("Configuración importada desde {}", path.display());
+            return Ok(());
+        }
+        if let Some(device_id) = args.forget_device.as_deref() {
+            config.remove_device(device_id)?;
+            config.save(&data_dir)?;
+            let _ = events::append(&data_dir, "known_device_forgotten", device_id);
+            println!("Dispositivo eliminado: {device_id}");
             return Ok(());
         }
         if let Some(device_id) = args.request_consent.as_deref() {
@@ -305,6 +315,7 @@ mod tests {
             list_consents: false,
             export_config: None,
             import_config: None,
+            forget_device: None,
         };
         assert_eq!(
             configured_update_manifest_url(&args, &config::UpdateChannel::Stable),
@@ -329,6 +340,7 @@ mod tests {
             list_consents: false,
             export_config: None,
             import_config: None,
+            forget_device: None,
         };
         assert!(
             configured_update_manifest_url(&args, &config::UpdateChannel::Beta)
