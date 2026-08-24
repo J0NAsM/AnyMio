@@ -131,6 +131,9 @@ impl eframe::App for AnyMioApp {
             if ui.button("Buscar actualizaciones ahora").clicked() && self.update_result.is_none() {
                 self.check_updates();
             }
+            if ui.button("Guardar preferencias").clicked() {
+                self.save("update channel, language or startup preference changed");
+            }
             ui.separator();
 
             ui.heading("Relay");
