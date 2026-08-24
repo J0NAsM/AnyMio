@@ -1,0 +1,56 @@
+# Actualizaciones
+
+JRemote consulta opcionalmente un manifiesto de actualización al abrirse. Si la
+versión publicada es mayor que la integrada en el ejecutable, muestra un mensaje
+con el enlace de descarga. La comprobación usa HTTPS, tiene un límite de tres
+segundos y un fallo de red nunca impide abrir la aplicación.
+
+## Publicar una versión
+
+1. Compila `cargo build --release` y publica `target\\release\\JRemote.exe` en
+   GitHub Releases u otro servidor HTTPS que controles.
+2. Publica un archivo, por ejemplo `update.json`, con este contenido:
+
+```json
+{
+  "version": "0.2.0",
+  "url": "https://github.com/USUARIO/JRemote/releases/download/v0.2.0/JRemote.exe",
+  "notes": "Correcciones y mejoras de estabilidad."
+}
+```
+
+La versión debe seguir el formato `mayor.menor.parche` y la URL de descarga debe
+usar HTTPS.
+
+## Integrar el manifiesto en la versión publicada
+
+Antes de compilar la versión que distribuirás, define su URL definitiva:
+
+```powershell
+$env:JREMOTE_UPDATE_MANIFEST_URL = "https://tu-dominio.example/update.json"
+cargo build --release
+```
+
+Esa URL queda dentro de `JRemote.exe`; al abrirlo, todos los usuarios recibirán
+el aviso cuando publiques una versión mayor. La dirección no está presente en el
+repositorio para no publicar por accidente un servidor de actualizaciones que no
+controlas.
+
+## Probar otra URL
+
+Para probarlo en una consola de Windows:
+
+```powershell
+$env:JREMOTE_UPDATE_MANIFEST_URL = "https://tu-dominio.example/update.json"
+.\dist\JRemote.exe
+```
+
+O usa una sola vez el argumento `--update-manifest-url`:
+
+```powershell
+.\dist\JRemote.exe --update-manifest-url "https://tu-dominio.example/update.json"
+```
+
+Esta primera versión abre una ruta de descarga en vez de reemplazar el ejecutable
+en uso; para actualizar de forma automática se necesita un proceso actualizador
+independiente y firma de binarios.
