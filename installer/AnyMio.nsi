@@ -1,5 +1,5 @@
 !ifndef VERSION
-  !define VERSION "0.2.6"
+  !define VERSION "0.2.7"
 !endif
 
 Unicode true
@@ -17,8 +17,9 @@ UninstPage instfiles
 
 Section "AnyMio" SecMain
   SetOutPath "$INSTDIR"
-  File "/oname=JRemote.exe" "target\release\JRemote.exe"
-  File "/oname=JRemoteUpdater.exe" "target\release\JRemoteUpdater.exe"
+  ; NSIS resolves File paths from this script's directory (installer/).
+  File "/oname=JRemote.exe" "..\target\release\JRemote.exe"
+  File "/oname=JRemoteUpdater.exe" "..\target\release\JRemoteUpdater.exe"
   CreateDirectory "$SMPROGRAMS\AnyMio"
   CreateShortcut "$SMPROGRAMS\AnyMio\AnyMio.lnk" "$INSTDIR\JRemote.exe"
   CreateShortcut "$DESKTOP\AnyMio.lnk" "$INSTDIR\JRemote.exe"
