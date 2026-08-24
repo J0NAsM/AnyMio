@@ -25,9 +25,9 @@ if ($SetPackageVersion) {
 Push-Location $projectRoot
 try {
     cargo fmt --check
-    cargo clippy --all-targets -- -D warnings
-    cargo test --all-targets
-    cargo build --release
+    cargo clippy --locked --all-targets -- -D warnings
+    cargo test --locked --all-targets
+    cargo build --locked --release
 } finally {
     Pop-Location
 }
