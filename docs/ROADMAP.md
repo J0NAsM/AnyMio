@@ -23,7 +23,7 @@ visible y pruebas entre equipos.
 | 15 | Informe local | Registro de eventos sin telemetría oculta |
 | 16 | Auditoría | Eventos de actualización y futuras sesiones |
 | 17 | Diagnóstico de red | Comprobación de URL de relay y actualización |
-| 18 | Prueba de relay | Comprobación explícita y no intrusiva |
+| 18 | Prueba de relay | HTTPS por `HEAD` o puerto WSS por TCP, sin autenticación |
 | 19 | Reconexión | Política preparada para el futuro canal de sesión |
 | 20 | Relay configurable | URL persistente validada |
 | 21 | Estado del relay | Estado local visible, sin fingir conectividad |
