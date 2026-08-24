@@ -5,6 +5,10 @@ versión publicada es mayor que la integrada en el ejecutable, muestra un mensaj
 con el enlace de descarga. La comprobación usa HTTPS, tiene un límite de tres
 segundos y un fallo de red nunca impide abrir la aplicación.
 
+El repositorio debe ser **público** para que los equipos de los usuarios puedan
+leer `update.json` sin una cuenta de GitHub. Si prefieres mantener el código
+privado, publica ese archivo y los instaladores en otro hosting HTTPS público.
+
 ## Publicar una versión
 
 1. Incrementa la versión en `Cargo.toml`, compila `cargo build --release` y
