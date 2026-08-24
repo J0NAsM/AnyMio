@@ -18,7 +18,7 @@ visible y pruebas entre equipos.
 | 10 | Idioma | Preferencia español/inglés preparada |
 | 11 | Instalador | Script NSIS y artefacto automatizado |
 | 12 | Firma de código | Flujo preparado; requiere certificado externo |
-| 13 | Firma de manifiesto | Flujo preparado; requiere clave privada externa |
+| 13 | Firma de manifiesto | Verificación Ed25519 opcional y firmador; requiere clave externa |
 | 14 | Canales | URL de manifiesto por canal |
 | 15 | Informe local | Registro de eventos sin telemetría oculta |
 | 16 | Auditoría | Eventos de actualización y futuras sesiones |

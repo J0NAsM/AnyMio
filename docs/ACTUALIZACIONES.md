@@ -25,13 +25,21 @@ privado, publica ese archivo y los instaladores en otro hosting HTTPS público.
   "version": "0.2.0",
   "url": "https://github.com/J0NAsM/AnyMio/releases/download/v0.2.0/JRemote.exe",
   "sha256": "HASH_SHA256_DE_64_CARACTERES_DEL_JRemote.exe",
-  "notes": "Correcciones y mejoras de estabilidad."
+  "notes": "Correcciones y mejoras de estabilidad.",
+  "signature": "FIRMA_ED25519_OPCIONAL_DE_128_CARACTERES_HEXADECIMALES"
 }
 ```
 
 La versión debe seguir el formato `mayor.menor.parche` y la URL de descarga debe
 usar HTTPS. Para una versión más nueva, `sha256` es obligatorio y debe contener
 el hash SHA-256, en hexadecimal, de `JRemote.exe`.
+
+Para exigir firma de manifiesto, compila AnyMio con
+`JREMOTE_UPDATE_MANIFEST_PUBLIC_KEY` establecido a la clave pública Ed25519 de
+64 caracteres hexadecimales. En esa compilación, cada manifiesto debe incluir
+una `signature` de 128 caracteres hexadecimales sobre los campos `version`,
+`url`, `sha256` y `notes`. El binario `JRemoteManifestSigner.exe` genera esa
+firma a partir de una clave privada externa; no almacenes esa clave en el repo.
 
 ## Integrar el manifiesto en la versión publicada
 
@@ -89,6 +97,14 @@ El workflow `.github/workflows/release.yml` se ejecuta al subir una etiqueta
 instalador NSIS, crea el Release y actualiza el manifiesto con el hash real. El
 script local `scripts/Prepare-Release.ps1` ofrece el mismo preparado antes de
 crear una etiqueta manualmente.
+
+Para firmar también el manifiesto local, configura la variable de compilación y
+proporciona la ruta de una clave privada temporal:
+
+```powershell
+$env:JREMOTE_UPDATE_MANIFEST_PUBLIC_KEY = "CLAVE_PUBLICA_ED25519_EN_HEX"
+.\scripts\Prepare-Release.ps1 -Version 1.2.3 -ManifestSigningPrivateKeyFile C:\seguro\manifest-private-key.txt
+```
 
 ## Canales
 

@@ -4,7 +4,8 @@ param(
     [ValidatePattern('^\d+\.\d+\.\d+([+-][0-9A-Za-z.-]+)?$')]
     [string]$Version,
     [string]$Repository = 'J0NAsM/AnyMio',
-    [switch]$SetPackageVersion
+    [switch]$SetPackageVersion,
+    [string]$ManifestSigningPrivateKeyFile
 )
 
 Set-StrictMode -Version Latest
@@ -48,6 +49,20 @@ $manifest = [ordered]@{
     notes = "Publicar notas de la versión $Version."
 } | ConvertTo-Json
 [System.IO.File]::WriteAllText($manifestPath, "$manifest`n", [System.Text.UTF8Encoding]::new($false))
+
+if (-not [string]::IsNullOrWhiteSpace($ManifestSigningPrivateKeyFile)) {
+    if ([string]::IsNullOrWhiteSpace($env:JREMOTE_UPDATE_MANIFEST_PUBLIC_KEY)) {
+        throw 'JREMOTE_UPDATE_MANIFEST_PUBLIC_KEY must be set when signing update.json.'
+    }
+    Push-Location $projectRoot
+    try {
+        cargo build --locked --release --bin JRemoteManifestSigner
+        & (Join-Path $projectRoot 'target\release\JRemoteManifestSigner.exe') --manifest $manifestPath --private-key-file $ManifestSigningPrivateKeyFile
+        if ($LASTEXITCODE -ne 0) { throw 'The update manifest signer failed.' }
+    } finally {
+        Pop-Location
+    }
+}
 
 Write-Host "Prepared $tag"
 Write-Host "SHA-256: $sha256"

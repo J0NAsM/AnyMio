@@ -1,10 +1,14 @@
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
+use ed25519_dalek::{Signature, VerifyingKey};
 use semver::Version;
 use serde::Deserialize;
 
 pub const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Optional 32-byte Ed25519 public key, encoded as 64 hexadecimal characters.
+/// Publishers set this at build time with JREMOTE_UPDATE_MANIFEST_PUBLIC_KEY.
+pub const MANIFEST_PUBLIC_KEY: Option<&str> = option_env!("JREMOTE_UPDATE_MANIFEST_PUBLIC_KEY");
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 
 #[derive(Debug, Deserialize)]
@@ -15,6 +19,8 @@ struct UpdateManifest {
     sha256: Option<String>,
     #[serde(default)]
     notes: Option<String>,
+    #[serde(default)]
+    signature: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -52,8 +58,16 @@ pub async fn check(manifest_url: &str) -> Result<Option<AvailableUpdate>> {
 }
 
 fn parse_manifest(manifest_json: &str) -> Result<Option<AvailableUpdate>> {
+    parse_manifest_with_public_key(manifest_json, MANIFEST_PUBLIC_KEY)
+}
+
+fn parse_manifest_with_public_key(
+    manifest_json: &str,
+    public_key: Option<&str>,
+) -> Result<Option<AvailableUpdate>> {
     let manifest: UpdateManifest =
         serde_json::from_str(manifest_json).context("the update manifest is invalid")?;
+    verify_manifest_signature(&manifest, public_key)?;
     let current = Version::parse(CURRENT_VERSION).context("the application version is invalid")?;
     let available = Version::parse(manifest.version.trim_start_matches('v'))
         .context("the update version is invalid")?;
@@ -77,6 +91,65 @@ fn parse_manifest(manifest_json: &str) -> Result<Option<AvailableUpdate>> {
     }))
 }
 
+/// Deterministic bytes signed by the manifest publisher. Length prefixes avoid
+/// ambiguity if a value contains a newline or separator.
+pub fn manifest_signing_payload(
+    version: &str,
+    url: &str,
+    sha256: Option<&str>,
+    notes: Option<&str>,
+) -> String {
+    let sha256 = sha256.unwrap_or_default();
+    let notes = notes.unwrap_or_default();
+    format!(
+        "version:{}:{version}\nurl:{}:{url}\nsha256:{}:{sha256}\nnotes:{}:{notes}\n",
+        version.len(),
+        url.len(),
+        sha256.len(),
+        notes.len()
+    )
+}
+
+fn verify_manifest_signature(manifest: &UpdateManifest, public_key: Option<&str>) -> Result<()> {
+    let Some(public_key) = public_key.filter(|value| !value.trim().is_empty()) else {
+        return Ok(());
+    };
+    let public_key =
+        decode_hex::<32>(public_key).context("the configured manifest public key is invalid")?;
+    let signature = manifest
+        .signature
+        .as_deref()
+        .context("the update manifest is missing its Ed25519 signature")?;
+    let signature = decode_hex::<64>(signature).context("the manifest signature is invalid")?;
+    let verifying_key = VerifyingKey::from_bytes(&public_key)
+        .context("the configured manifest public key is invalid")?;
+    verifying_key
+        .verify_strict(
+            manifest_signing_payload(
+                &manifest.version,
+                &manifest.url,
+                manifest.sha256.as_deref(),
+                manifest.notes.as_deref(),
+            )
+            .as_bytes(),
+            &Signature::from_bytes(&signature),
+        )
+        .context("the update manifest signature does not verify")
+}
+
+fn decode_hex<const N: usize>(value: &str) -> Result<[u8; N]> {
+    if value.len() != N * 2 {
+        bail!("expected {} hexadecimal characters", N * 2);
+    }
+    let mut bytes = [0_u8; N];
+    for (index, byte) in bytes.iter_mut().enumerate() {
+        let offset = index * 2;
+        *byte = u8::from_str_radix(&value[offset..offset + 2], 16)
+            .context("contains non-hexadecimal characters")?;
+    }
+    Ok(bytes)
+}
+
 fn require_https(value: &str, description: &str) -> Result<()> {
     let url = reqwest::Url::parse(value).with_context(|| format!("{description} is malformed"))?;
     if url.scheme() != "https" {
@@ -95,6 +168,7 @@ fn validate_sha256(value: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ed25519_dalek::{Signer, SigningKey};
 
     const HASH: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
@@ -145,5 +219,44 @@ mod tests {
         )
         .unwrap_err();
         assert!(error.to_string().contains("64 hexadecimal"));
+    }
+
+    #[test]
+    fn configured_public_key_requires_a_valid_signature() {
+        let signing_key = SigningKey::from_bytes(&[7_u8; 32]);
+        let public_key = signing_key.verifying_key();
+        let payload = manifest_signing_payload(
+            "999.0.0",
+            "https://example.com/JRemote.exe",
+            Some(HASH),
+            Some("Signed release"),
+        );
+        let signature = signing_key.sign(payload.as_bytes());
+        let manifest = format!(
+            r#"{{"version":"999.0.0","url":"https://example.com/JRemote.exe","sha256":"{HASH}","notes":"Signed release","signature":"{}"}}"#,
+            encode_hex(&signature.to_bytes())
+        );
+        assert!(
+            parse_manifest_with_public_key(&manifest, Some(&encode_hex(public_key.as_bytes())))
+                .unwrap()
+                .is_some()
+        );
+        assert!(parse_manifest_with_public_key(
+            r#"{"version":"999.0.0","url":"https://example.com/JRemote.exe","sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}"#,
+            Some(&encode_hex(public_key.as_bytes()))
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn signing_payload_is_stable_for_external_signers() {
+        assert_eq!(
+            manifest_signing_payload("1.0.0", "https://example.test/app.exe", Some("ab"), None),
+            "version:5:1.0.0\nurl:28:https://example.test/app.exe\nsha256:2:ab\nnotes:0:\n"
+        );
+    }
+
+    fn encode_hex(bytes: &[u8]) -> String {
+        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
     }
 }

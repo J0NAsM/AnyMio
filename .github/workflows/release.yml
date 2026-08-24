@@ -24,11 +24,14 @@ jobs:
           $cargoVersion = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"$').Matches[0].Groups[1].Value
           if ($tagVersion -ne $cargoVersion) { throw "The tag version and Cargo.toml version must match." }
       - name: Verify source and build
+        env:
+          JREMOTE_UPDATE_MANIFEST_PUBLIC_KEY: ${{ vars.UPDATE_MANIFEST_PUBLIC_KEY }}
         run: |
           cargo fmt --check
           cargo clippy --locked --all-targets -- -D warnings
           cargo test --locked --all-targets
           cargo build --locked --release
+          cargo build --locked --release --bin JRemoteManifestSigner
       - name: Build installer
         shell: pwsh
         run: |
@@ -57,6 +60,9 @@ jobs:
           gh release create $env:GITHUB_REF_NAME target/release/JRemote.exe target/release/JRemoteUpdater.exe installer/AnyMio-Setup-$($env:GITHUB_REF_NAME.TrimStart('v')).exe --generate-notes --title "AnyMio $($env:GITHUB_REF_NAME)"
       - name: Publish update manifest
         shell: pwsh
+        env:
+          UPDATE_MANIFEST_SIGNING_PRIVATE_KEY: ${{ secrets.UPDATE_MANIFEST_SIGNING_PRIVATE_KEY }}
+          UPDATE_MANIFEST_PUBLIC_KEY: ${{ vars.UPDATE_MANIFEST_PUBLIC_KEY }}
         run: |
           $version = $env:GITHUB_REF_NAME.TrimStart('v')
           $sha256 = (Get-FileHash target/release/JRemote.exe -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -69,6 +75,21 @@ jobs:
           git fetch origin main
           git checkout main
           [System.IO.File]::WriteAllText("update.json", "$manifest`n", [System.Text.UTF8Encoding]::new($false))
+          if (-not [string]::IsNullOrWhiteSpace($env:UPDATE_MANIFEST_SIGNING_PRIVATE_KEY)) {
+            if ([string]::IsNullOrWhiteSpace($env:UPDATE_MANIFEST_PUBLIC_KEY)) {
+              throw 'UPDATE_MANIFEST_PUBLIC_KEY must be configured when signing the update manifest.'
+            }
+            $privateKeyPath = Join-Path $env:RUNNER_TEMP 'update-manifest-private-key.txt'
+            try {
+              [System.IO.File]::WriteAllText($privateKeyPath, $env:UPDATE_MANIFEST_SIGNING_PRIVATE_KEY.Trim(), [System.Text.UTF8Encoding]::new($false))
+              & target\release\JRemoteManifestSigner.exe --manifest update.json --private-key-file $privateKeyPath
+              if ($LASTEXITCODE -ne 0) { throw 'The update manifest signer failed.' }
+            } finally {
+              Remove-Item -LiteralPath $privateKeyPath -Force -ErrorAction SilentlyContinue
+            }
+          } else {
+            Write-Host 'No manifest signing key configured; publishing a SHA-256 verified manifest only.'
+          }
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add update.json
