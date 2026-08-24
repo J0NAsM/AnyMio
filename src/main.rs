@@ -1,4 +1,5 @@
 mod config;
+mod diagnostics;
 mod events;
 mod identity;
 mod protocol;
@@ -41,6 +42,9 @@ struct Args {
     /// Open the visible local AnyMio interface.
     #[arg(long)]
     ui: bool,
+    /// Check update hosting and relay configuration without changing anything.
+    #[arg(long)]
+    diagnostics: bool,
 }
 
 // The publisher can set this at build time. A command-line URL or runtime
@@ -72,6 +76,23 @@ async fn main() -> Result<()> {
             "application_started",
             "JRemote was opened locally",
         );
+        if args.diagnostics {
+            for result in diagnostics::run(
+                &configured_update_manifest_url(&args),
+                config.relay_url.as_deref(),
+            )
+            .await
+            {
+                let state = if result.ok { "OK" } else { "ERROR" };
+                println!("[{state}] {}: {}", result.name, result.detail);
+                let _ = events::append(
+                    &data_dir,
+                    "diagnostic",
+                    &format!("{}: {}", result.name, result.detail),
+                );
+            }
+            return Ok(());
+        }
         if args.ui {
             let identity = DeviceIdentity::load_or_create(args.data_dir.clone())
                 .context("could not load the local device identity")?;
@@ -174,6 +195,7 @@ mod tests {
             update_manifest_url: Some("https://example.com/update.json".into()),
             install_update: false,
             ui: false,
+            diagnostics: false,
         };
         assert_eq!(
             configured_update_manifest_url(&args),
