@@ -4,6 +4,10 @@ mod diagnostics;
 mod events;
 mod identity;
 mod protocol;
+// Policy used by the future E2E session transport; it does not create retries
+// or remote access in the current signalling-only build.
+#[allow(dead_code)]
+mod reconnect;
 mod relay;
 // Used by the future unattended-access flow; keep it compiled and covered by unit tests.
 #[allow(dead_code)]

@@ -24,7 +24,7 @@ visible y pruebas entre equipos.
 | 16 | Auditoría | Eventos de actualización y futuras sesiones |
 | 17 | Diagnóstico de red | Comprobación de URL de relay y actualización |
 | 18 | Prueba de relay | HTTPS por `HEAD` o puerto WSS por TCP, sin autenticación |
-| 19 | Reconexión | Política preparada para el futuro canal de sesión |
+| 19 | Reconexión | Backoff limitado de cinco intentos y nueva acción explícita |
 | 20 | Relay configurable | URL persistente validada |
 | 21 | Estado del relay | Estado local visible, sin fingir conectividad |
 | 22 | Dispositivos conocidos | Lista local con claves/IDs y etiquetas |

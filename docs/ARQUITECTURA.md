@@ -17,6 +17,10 @@ El archivo local `session-history.json` conserva hasta 200 eventos del ciclo de
 consentimiento (solicitud, aprobación o rechazo). Es una pista de auditoría y
 no implica que se haya iniciado una sesión de escritorio.
 
+La futura capa de sesión usa una política de reconexión limitada: cinco intentos
+con espera exponencial de 1, 2, 4, 8 y 16 segundos. Tras agotarse requiere una
+nueva acción explícita del usuario; no habilita acceso desatendido.
+
 ## Próxima arquitectura necesaria para V1
 
 1. GUI visible de host/cliente y solicitud local de consentimiento.
