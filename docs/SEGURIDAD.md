@@ -33,3 +33,8 @@ El workflow de Release admite esa firma sin exponer el certificado: configura
 los secretos `WINDOWS_CERTIFICATE_BASE64` y `WINDOWS_CERTIFICATE_PASSWORD` en
 GitHub. Si no están presentes, publica artefactos sin firma y lo declara en el
 log del workflow.
+
+El relay también limita solicitudes pendientes y bloquea temporalmente una IP
+tras cinco fallos de autenticación dentro de un minuto. Es una medida de
+contención, no un sustituto de TLS, limitación de red perimetral ni monitoreo de
+infraestructura.

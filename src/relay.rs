@@ -3,7 +3,7 @@
 
 use std::{
     collections::HashMap,
-    net::SocketAddr,
+    net::{IpAddr, SocketAddr},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -30,6 +30,9 @@ const CLEANUP_INTERVAL: Duration = Duration::from_secs(10);
 const MAX_PENDING_REQUESTS: usize = 10_000;
 const MAX_PENDING_PER_CLIENT: usize = 4;
 const MAX_CONNECTIONS: usize = 512;
+const MAX_AUTH_FAILURES: u8 = 5;
+const AUTH_FAILURE_WINDOW: Duration = Duration::from_secs(60);
+const AUTH_BLOCK_DURATION: Duration = Duration::from_secs(300);
 
 #[derive(Clone)]
 struct RegisteredPeer {
@@ -52,10 +55,18 @@ struct PendingRequest {
     expires_at: Instant,
 }
 
+#[derive(Clone, Copy)]
+struct AuthenticationFailures {
+    count: u8,
+    window_started: Instant,
+    blocked_until: Option<Instant>,
+}
+
 #[derive(Default)]
 struct Registry {
     peers: HashMap<u32, RegisteredPeer>,
     pending: HashMap<Uuid, PendingRequest>,
+    authentication_failures: HashMap<IpAddr, AuthenticationFailures>,
 }
 
 pub struct Relay {
@@ -95,7 +106,7 @@ impl Relay {
                     let registry = Arc::clone(&self.registry);
                     tokio::spawn(async move {
                         let _permit = permit;
-                        if let Err(error) = handle_connection(stream, registry).await {
+                        if let Err(error) = handle_connection(stream, address.ip(), registry).await {
                             warn!(%address, %error, "relay peer disconnected with error");
                         }
                     });
@@ -116,7 +127,11 @@ fn send(tx: &mpsc::Sender<Message>, message: Message) -> bool {
     }
 }
 
-async fn handle_connection(stream: TcpStream, registry: Arc<Mutex<Registry>>) -> Result<()> {
+async fn handle_connection(
+    stream: TcpStream,
+    peer_ip: IpAddr,
+    registry: Arc<Mutex<Registry>>,
+) -> Result<()> {
     stream.set_nodelay(true)?;
     let (mut reader, mut writer) = stream.into_split();
     let (tx, mut rx) = mpsc::channel::<Message>(32);
@@ -133,6 +148,7 @@ async fn handle_connection(stream: TcpStream, registry: Arc<Mutex<Registry>>) ->
         &mut reader,
         &tx,
         Arc::clone(&registry),
+        peer_ip,
         connection_id,
         &mut registration,
     )
@@ -151,6 +167,7 @@ async fn handle_messages<R>(
     reader: &mut R,
     tx: &mpsc::Sender<Message>,
     registry: Arc<Mutex<Registry>>,
+    peer_ip: IpAddr,
     connection_id: Uuid,
     registration: &mut Option<Registration>,
 ) -> Result<()>
@@ -210,10 +227,18 @@ where
             } => {
                 if registration.is_some() {
                     send(tx, invalid("already registered"))
+                } else if authentication_is_blocked(&registry, peer_ip).await {
+                    send(
+                        tx,
+                        authentication_failed(
+                            "too many failed authentication attempts; try again later",
+                        ),
+                    )
                 } else {
                     register(
                         tx,
                         &registry,
+                        peer_ip,
                         connection_id,
                         &nonce,
                         device_id,
@@ -267,6 +292,7 @@ where
 async fn register(
     tx: &mpsc::Sender<Message>,
     registry: &Mutex<Registry>,
+    peer_ip: IpAddr,
     connection_id: Uuid,
     nonce: &[u8; 32],
     device_id: u32,
@@ -275,12 +301,15 @@ async fn register(
     registration: &mut Option<Registration>,
 ) -> bool {
     let Ok(public_key) = <[u8; 32]>::try_from(public_key.as_slice()) else {
+        record_authentication_failure(registry, peer_ip).await;
         return send(tx, authentication_failed("invalid public key"));
     };
     let Ok(signature) = <[u8; 64]>::try_from(signature.as_slice()) else {
+        record_authentication_failure(registry, peer_ip).await;
         return send(tx, authentication_failed("invalid signature"));
     };
     let Ok(verifying_key) = VerifyingKey::from_bytes(&public_key) else {
+        record_authentication_failure(registry, peer_ip).await;
         return send(tx, authentication_failed("invalid public key"));
     };
     if !(100_000_000..1_000_000_000).contains(&device_id)
@@ -292,16 +321,20 @@ async fn register(
             )
             .is_err()
     {
+        record_authentication_failure(registry, peer_ip).await;
         return send(tx, authentication_failed("registration proof is invalid"));
     }
 
-    let previous = registry.lock().await.peers.insert(
+    let mut state = registry.lock().await;
+    state.authentication_failures.remove(&peer_ip);
+    let previous = state.peers.insert(
         device_id,
         RegisteredPeer {
             tx: tx.clone(),
             connection_id,
         },
     );
+    drop(state);
     *registration = Some(Registration {
         device_id,
         connection_id,
@@ -317,6 +350,42 @@ async fn register(
     }
     info!(device_id, "authenticated endpoint registered");
     send(tx, Message::RegisterOk { device_id })
+}
+
+async fn authentication_is_blocked(registry: &Mutex<Registry>, peer_ip: IpAddr) -> bool {
+    let now = Instant::now();
+    registry
+        .lock()
+        .await
+        .authentication_failures
+        .get(&peer_ip)
+        .and_then(|failures| failures.blocked_until)
+        .is_some_and(|blocked_until| blocked_until > now)
+}
+
+async fn record_authentication_failure(registry: &Mutex<Registry>, peer_ip: IpAddr) {
+    let now = Instant::now();
+    let mut state = registry.lock().await;
+    let failures = state
+        .authentication_failures
+        .entry(peer_ip)
+        .or_insert(AuthenticationFailures {
+            count: 0,
+            window_started: now,
+            blocked_until: None,
+        });
+    if now.duration_since(failures.window_started) > AUTH_FAILURE_WINDOW {
+        *failures = AuthenticationFailures {
+            count: 0,
+            window_started: now,
+            blocked_until: None,
+        };
+    }
+    failures.count = failures.count.saturating_add(1);
+    if failures.count >= MAX_AUTH_FAILURES {
+        failures.blocked_until = Some(now + AUTH_BLOCK_DURATION);
+        warn!(%peer_ip, "temporarily blocked after repeated authentication failures");
+    }
 }
 
 async fn require_current_registration(
@@ -509,5 +578,21 @@ fn authentication_failed(message: impl Into<String>) -> Message {
     Message::Error {
         code: ErrorCode::AuthenticationFailed,
         message: message.into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::{IpAddr, Ipv4Addr};
+
+    #[tokio::test]
+    async fn repeated_authentication_failures_temporarily_block_an_ip() {
+        let registry = Mutex::new(Registry::default());
+        let ip = IpAddr::V4(Ipv4Addr::LOCALHOST);
+        for _ in 0..MAX_AUTH_FAILURES {
+            record_authentication_failure(&registry, ip).await;
+        }
+        assert!(authentication_is_blocked(&registry, ip).await);
     }
 }
