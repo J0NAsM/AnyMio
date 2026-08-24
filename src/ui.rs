@@ -40,6 +40,7 @@ pub fn run(
                 consent_device_draft: String::new(),
                 manifest_url,
                 update_result: None,
+                diagnostics_result: None,
                 available_update: None,
                 status: None,
             }))
@@ -58,6 +59,7 @@ struct AnyMioApp {
     consent_device_draft: String,
     manifest_url: String,
     update_result: Option<Receiver<UpdateCheckResult>>,
+    diagnostics_result: Option<Receiver<String>>,
     available_update: Option<update::AvailableUpdate>,
     status: Option<String>,
 }
@@ -191,6 +193,48 @@ impl AnyMioApp {
             Err(error) => self.status = Some(format!("No se pudo resolver la solicitud: {error}")),
         }
     }
+
+    fn run_diagnostics(&mut self) {
+        let manifest_url = self.manifest_url.clone();
+        let relay_url = self.config.relay_url.clone();
+        let language = self.config.language.clone();
+        let (sender, receiver) = mpsc::channel();
+        std::thread::spawn(move || {
+            let detail = match tokio::runtime::Runtime::new() {
+                Ok(runtime) => runtime
+                    .block_on(crate::diagnostics::run(&manifest_url, relay_url.as_deref()))
+                    .into_iter()
+                    .map(|result| {
+                        let state = if result.ok {
+                            text(&language, "OK", "OK")
+                        } else {
+                            text(&language, "ERROR", "ERROR")
+                        };
+                        format!("{state} {}: {}", result.name, result.detail)
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" | "),
+                Err(error) => format!(
+                    "{}: {error}",
+                    text(
+                        &language,
+                        "No se pudo iniciar el diagnóstico",
+                        "Could not start diagnostics",
+                    )
+                ),
+            };
+            let _ = sender.send(detail);
+        });
+        self.status = Some(
+            text(
+                &self.config.language,
+                "Comprobando configuración…",
+                "Checking configuration…",
+            )
+            .into(),
+        );
+        self.diagnostics_result = Some(receiver);
+    }
 }
 
 impl eframe::App for AnyMioApp {
@@ -222,6 +266,15 @@ impl eframe::App for AnyMioApp {
                 let _ = events::append(&self.data_dir, "update_check_manual", &message);
                 self.status = Some(message);
                 self.update_result = None;
+            } else {
+                context.request_repaint_after(std::time::Duration::from_millis(100));
+            }
+        }
+        if let Some(receiver) = &self.diagnostics_result {
+            if let Ok(message) = receiver.try_recv() {
+                let _ = events::append(&self.data_dir, "diagnostic_manual", &message);
+                self.status = Some(message);
+                self.diagnostics_result = None;
             } else {
                 context.request_repaint_after(std::time::Duration::from_millis(100));
             }
@@ -337,6 +390,17 @@ impl eframe::App for AnyMioApp {
                     self.save("relay configuration changed");
                 }
             });
+            if ui
+                .button(text(
+                    &language,
+                    "Probar manifiesto y relay",
+                    "Test manifest and relay",
+                ))
+                .clicked()
+                && self.diagnostics_result.is_none()
+            {
+                self.run_diagnostics();
+            }
             ui.separator();
 
             ui.heading(text(&language, "Dispositivos conocidos", "Known devices"));
