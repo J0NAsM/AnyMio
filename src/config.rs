@@ -84,6 +84,23 @@ impl AppConfig {
         fs::rename(temporary, dir.join(CONFIG_FILE)).context("could not save config atomically")
     }
 
+    pub fn export_to(&self, path: &Path) -> Result<()> {
+        self.validate()?;
+        if path.exists() {
+            bail!("the export destination already exists");
+        }
+        fs::write(path, serde_json::to_vec_pretty(self)?)
+            .context("could not write the configuration export")
+    }
+
+    pub fn import_from(path: &Path) -> Result<Self> {
+        let config: Self =
+            serde_json::from_slice(&fs::read(path).context("could not read config import")?)
+                .context("configuration import is malformed")?;
+        config.validate()?;
+        Ok(config)
+    }
+
     pub fn add_or_update_device(&mut self, device: KnownDevice) -> Result<()> {
         if device.public_id.trim().is_empty() || device.display_name.trim().is_empty() {
             bail!("a known device requires an ID and display name");
@@ -158,5 +175,16 @@ mod tests {
             ..AppConfig::default()
         };
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn exports_and_imports_validated_configuration() {
+        let temp = tempfile::tempdir().unwrap();
+        let export = temp.path().join("backup.json");
+        AppConfig::default().export_to(&export).unwrap();
+        assert_eq!(
+            AppConfig::import_from(&export).unwrap().version,
+            CONFIG_VERSION
+        );
     }
 }

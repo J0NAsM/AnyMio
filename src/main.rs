@@ -58,6 +58,12 @@ struct Args {
     /// List local consent requests and their expiry status.
     #[arg(long)]
     list_consents: bool,
+    /// Export the non-secret local configuration to a new JSON file.
+    #[arg(long, value_name = "PATH")]
+    export_config: Option<PathBuf>,
+    /// Validate and replace the local non-secret configuration from JSON.
+    #[arg(long, value_name = "PATH")]
+    import_config: Option<PathBuf>,
 }
 
 // The publisher can set this at build time. A command-line URL or runtime
@@ -83,12 +89,25 @@ async fn main() -> Result<()> {
         Relay::bind(address).await?.serve().await
     } else {
         let data_dir = identity::application_data_dir(args.data_dir.clone())?;
-        let config = config::AppConfig::load_or_create(&data_dir)?;
+        let mut config = config::AppConfig::load_or_create(&data_dir)?;
         let _ = events::append(
             &data_dir,
             "application_started",
             "JRemote was opened locally",
         );
+        if let Some(path) = args.export_config.as_deref() {
+            config.export_to(path)?;
+            let _ = events::append(&data_dir, "config_exported", &path.display().to_string());
+            println!("Configuración exportada a {}", path.display());
+            return Ok(());
+        }
+        if let Some(path) = args.import_config.as_deref() {
+            config = config::AppConfig::import_from(path)?;
+            config.save(&data_dir)?;
+            let _ = events::append(&data_dir, "config_imported", &path.display().to_string());
+            println!("Configuración importada desde {}", path.display());
+            return Ok(());
+        }
         if let Some(device_id) = args.request_consent.as_deref() {
             let mut store = consent::ConsentStore::load(&data_dir)?;
             let request_id = store.request(device_id.to_owned())?;
@@ -247,6 +266,8 @@ mod tests {
             approve_consent: None,
             deny_consent: None,
             list_consents: false,
+            export_config: None,
+            import_config: None,
         };
         assert_eq!(
             configured_update_manifest_url(&args),
