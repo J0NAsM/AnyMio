@@ -29,7 +29,7 @@ jobs:
         shell: pwsh
         run: |
           choco install nsis -y --no-progress
-          makensis /DVERSION=$($env:GITHUB_REF_NAME.TrimStart('v')) installer/AnyMio.nsi
+          & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" /DVERSION=$($env:GITHUB_REF_NAME.TrimStart('v')) installer/AnyMio.nsi
       - name: Optionally sign Windows artifacts
         shell: pwsh
         env:
