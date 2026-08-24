@@ -39,6 +39,9 @@ botón **Descargar e instalar**; en consola también puede usarse
 `JRemote.exe --install-update`. El ayudante descarga, verifica y reemplaza el
 binario una vez que la aplicación se cierra.
 
+La ventana aplica la preferencia de idioma Español o English a sus controles,
+estados y avisos principales; se guarda junto con la configuración local.
+
 ## Diagnóstico local
 
 `JRemote.exe --diagnostics` revisa de forma no intrusiva el manifiesto y la URL
