@@ -15,15 +15,19 @@ jobs:
         with:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
       - name: Verify tag version
         shell: pwsh
         run: |
           $tagVersion = $env:GITHUB_REF_NAME.TrimStart('v')
           $cargoVersion = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"$').Matches[0].Groups[1].Value
           if ($tagVersion -ne $cargoVersion) { throw "The tag version and Cargo.toml version must match." }
-      - name: Test and build
+      - name: Verify source and build
         run: |
-          cargo test
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test --all-targets
           cargo build --release
       - name: Build installer
         shell: pwsh

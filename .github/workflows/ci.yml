@@ -22,7 +22,7 @@ jobs:
       - name: Lint
         run: cargo clippy --all-targets -- -D warnings
       - name: Test
-        run: cargo test
+        run: cargo test --all-targets
       - name: Build release binaries
         run: cargo build --release
       - name: Upload release binaries
