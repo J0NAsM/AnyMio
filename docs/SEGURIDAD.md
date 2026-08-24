@@ -16,3 +16,15 @@
 - Auditoría y controles de DoS de conexiones.
 
 La falta de estas capas significa que el código actual sólo debe usarse en desarrollo local, nunca como relay expuesto a Internet.
+# Seguridad de actualizaciones
+
+El canal de actualización acepta únicamente URLs HTTPS. Las versiones nuevas
+deben declarar un SHA-256 de 64 caracteres; el proceso auxiliar vuelve a
+calcularlo mientras descarga el ejecutable y rechaza cualquier diferencia. No
+reemplaza archivos arbitrarios: solamente `JRemote.exe` situado junto al
+actualizador.
+
+El repositorio público y la cuenta con permiso de publicar releases forman parte
+de la cadena de confianza. El hash evita corrupción o un enlace equivocado, pero
+no reemplaza una firma de código. La siguiente mejora de seguridad recomendada
+es firmar `JRemote.exe`, `JRemoteUpdater.exe` y el instalador con Authenticode.

@@ -6,9 +6,9 @@ mod relay;
 mod security;
 mod update;
 
-use std::{env, net::SocketAddr, path::PathBuf};
+use std::{env, net::SocketAddr, path::PathBuf, process::Command};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::Parser;
 use identity::DeviceIdentity;
 use relay::Relay;
@@ -32,6 +32,9 @@ struct Args {
     /// HTTPS URL of the release manifest. It overrides the environment setting.
     #[arg(long, value_name = "URL")]
     update_manifest_url: Option<String>,
+    /// Download, verify and install an available update, then restart JRemote.
+    #[arg(long)]
+    install_update: bool,
 }
 
 // The publisher can set this at build time. A command-line URL or runtime
@@ -56,24 +59,27 @@ async fn main() -> Result<()> {
         );
         Relay::bind(address).await?.serve().await
     } else {
+        let available_update = update::check(&configured_update_manifest_url(&args)).await;
+        if args.install_update {
+            return install_update(available_update?);
+        }
+
         let identity = DeviceIdentity::load_or_create(args.data_dir.clone())
             .context("could not load the local device identity")?;
         println!("JRemote {}", update::CURRENT_VERSION);
         println!("This device ID: {}", identity.public_id_formatted());
         println!("No remote session is active.");
         println!("The GUI/capture endpoint is not yet included in this build.");
-        if let Some(manifest_url) = configured_update_manifest_url(&args) {
-            match update::check(&manifest_url).await {
-                Ok(Some(release)) => show_update_message(&release),
-                Ok(None) => {}
-                Err(error) => tracing::debug!(%error, "update check failed"),
-            }
+        match available_update {
+            Ok(Some(release)) => show_update_message(&release),
+            Ok(None) => {}
+            Err(error) => tracing::debug!(%error, "update check failed"),
         }
         Ok(())
     }
 }
 
-fn configured_update_manifest_url(args: &Args) -> Option<String> {
+fn configured_update_manifest_url(args: &Args) -> String {
     args.update_manifest_url
         .clone()
         .or_else(|| {
@@ -82,7 +88,7 @@ fn configured_update_manifest_url(args: &Args) -> Option<String> {
                 .filter(|value| !value.trim().is_empty())
         })
         .or_else(|| BUILT_IN_UPDATE_MANIFEST_URL.map(str::to_owned))
-        .or_else(|| Some(DEFAULT_UPDATE_MANIFEST_URL.to_owned()))
+        .unwrap_or_else(|| DEFAULT_UPDATE_MANIFEST_URL.to_owned())
 }
 
 fn show_update_message(release: &update::AvailableUpdate) {
@@ -94,6 +100,36 @@ fn show_update_message(release: &update::AvailableUpdate) {
     if let Some(notes) = &release.notes {
         println!("Cambios: {notes}");
     }
+    println!("Para instalarla: JRemote.exe --install-update");
+}
+
+fn install_update(release: Option<update::AvailableUpdate>) -> Result<()> {
+    let Some(release) = release else {
+        println!("JRemote ya est\u{00e1} actualizado.");
+        return Ok(());
+    };
+    let executable =
+        env::current_exe().context("could not determine the JRemote executable path")?;
+    let updater = executable
+        .parent()
+        .context("the JRemote executable has no parent directory")?
+        .join("JRemoteUpdater.exe");
+    if !updater.is_file() {
+        bail!("JRemoteUpdater.exe is missing; reinstall JRemote from its official release");
+    }
+    Command::new(updater)
+        .arg("--target")
+        .arg(&executable)
+        .arg("--url")
+        .arg(&release.url)
+        .arg("--sha256")
+        .arg(&release.sha256)
+        .spawn()
+        .context("could not start the update helper")?;
+    println!(
+        "La actualizaci\u{00f3}n se descargar\u{00e1} y verificar\u{00e1} al cerrar esta ventana."
+    );
+    Ok(())
 }
 
 #[cfg(test)]
@@ -107,10 +143,11 @@ mod tests {
             port: 4433,
             data_dir: None,
             update_manifest_url: Some("https://example.com/update.json".into()),
+            install_update: false,
         };
         assert_eq!(
-            configured_update_manifest_url(&args).as_deref(),
-            Some("https://example.com/update.json")
+            configured_update_manifest_url(&args),
+            "https://example.com/update.json"
         );
     }
 }

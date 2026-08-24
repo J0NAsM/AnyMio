@@ -1,4 +1,7 @@
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
@@ -43,6 +46,7 @@ impl DeviceIdentity {
         Self::create_in(dir)
     }
 
+    #[cfg(test)]
     pub fn reset(explicit_dir: Option<PathBuf>) -> Result<Self> {
         let dir = identity_dir(explicit_dir)?;
         fs::create_dir_all(&dir).context("could not create identity directory")?;
@@ -60,6 +64,7 @@ impl DeviceIdentity {
             .to_bytes()
     }
 
+    #[allow(dead_code)]
     pub fn sign(&self, payload: &[u8]) -> [u8; 64] {
         SigningKey::from_bytes(&self.signing_key)
             .sign(payload)
@@ -86,7 +91,7 @@ impl DeviceIdentity {
         Ok(identity)
     }
 
-    fn save_in(&self, dir: &PathBuf) -> Result<()> {
+    fn save_in(&self, dir: &Path) -> Result<()> {
         let path = dir.join(IDENTITY_FILE);
         let temporary_path = dir.join(IDENTITY_TEMP_FILE);
         let content = serde_json::to_vec_pretty(self)?;
@@ -118,6 +123,7 @@ fn new_signing_key() -> [u8; 32] {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 
     #[test]
     fn persistent_identity_round_trips() {
@@ -137,5 +143,17 @@ mod tests {
         let second = DeviceIdentity::reset(Some(temp.path().to_owned())).unwrap();
         assert_ne!(first.public_key(), second.public_key());
         assert_ne!(first.public_id, second.public_id);
+    }
+
+    #[test]
+    fn signatures_verify_with_the_persisted_public_key() {
+        let temp = tempfile::tempdir().unwrap();
+        let identity = DeviceIdentity::load_or_create(Some(temp.path().to_owned())).unwrap();
+        let payload = b"JRemote identity test";
+        let signature = Signature::from_bytes(&identity.sign(payload));
+        VerifyingKey::from_bytes(&identity.public_key())
+            .unwrap()
+            .verify(payload, &signature)
+            .unwrap();
     }
 }

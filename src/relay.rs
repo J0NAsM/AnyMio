@@ -9,7 +9,7 @@ use std::{
 };
 
 use anyhow::Result;
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, VerifyingKey};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::{Mutex, Semaphore, mpsc},
@@ -71,10 +71,6 @@ impl Relay {
             registry: Arc::new(Mutex::new(Registry::default())),
             connection_slots: Arc::new(Semaphore::new(MAX_CONNECTIONS)),
         })
-    }
-
-    pub fn local_addr(&self) -> Result<SocketAddr> {
-        Ok(self.listener.local_addr()?)
     }
 
     pub async fn serve(self) -> Result<()> {
@@ -460,7 +456,7 @@ async fn connect_response(
             .filter(|peer| peer.connection_id == request.client_connection_id)
             .map(|peer| peer.tx.clone())
     };
-    outcome.map_or(true, |client_tx| send(&client_tx, response))
+    outcome.is_none_or(|client_tx| send(&client_tx, response))
 }
 
 async fn unregister(registry: &Mutex<Registry>, registration: Option<Registration>) {

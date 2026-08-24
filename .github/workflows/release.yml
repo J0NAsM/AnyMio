@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Verify tag version
+        shell: pwsh
+        run: |
+          $tagVersion = $env:GITHUB_REF_NAME.TrimStart('v')
+          $cargoVersion = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"$').Matches[0].Groups[1].Value
+          if ($tagVersion -ne $cargoVersion) { throw "The tag version and Cargo.toml version must match." }
+      - name: Test and build
+        run: |
+          cargo test
+          cargo build --release
+      - name: Build installer
+        shell: pwsh
+        run: |
+          choco install nsis -y --no-progress
+          makensis /DVERSION=$($env:GITHUB_REF_NAME.TrimStart('v')) installer/AnyMio.nsi
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release create $env:GITHUB_REF_NAME target/release/JRemote.exe target/release/JRemoteUpdater.exe installer/AnyMio-Setup-$($env:GITHUB_REF_NAME.TrimStart('v')).exe --generate-notes --title "AnyMio $($env:GITHUB_REF_NAME)"
+      - name: Publish update manifest
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          $sha256 = (Get-FileHash target/release/JRemote.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $manifest = [ordered]@{
+            version = $version
+            url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME/JRemote.exe"
+            sha256 = $sha256
+            notes = "Actualización automática publicada desde $env:GITHUB_REF_NAME."
+          } | ConvertTo-Json
+          git fetch origin main
+          git checkout main
+          [System.IO.File]::WriteAllText("update.json", "$manifest`n", [System.Text.UTF8Encoding]::new($false))
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add update.json
+          if (git diff --cached --quiet) { exit 0 }
+          git commit -m "chore: publish update manifest for v$version"
+          git push origin main

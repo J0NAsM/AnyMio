@@ -33,6 +33,19 @@ Al iniciar, JRemote puede avisar de una versión nueva y mostrar el enlace de
 descarga. Consulta [la guía de actualizaciones](docs/ACTUALIZACIONES.md) para
 publicar el manifiesto y configurar su URL.
 
+Las versiones publicadas incluyen `JRemote.exe` y `JRemoteUpdater.exe`. Cuando
+existe un manifiesto más nuevo con SHA-256 válido, el usuario puede instalarlo
+con `JRemote.exe --install-update`; el ayudante descarga, verifica y reemplaza
+el binario una vez que la aplicación se cierra.
+
+## Automatización
+
+GitHub Actions ejecuta formato, lints, pruebas y una compilación de Windows en
+cada cambio a `main`. Al publicar una etiqueta `vX.Y.Z` que coincida con la
+versión de `Cargo.toml`, el workflow crea el Release, genera el instalador y
+actualiza `update.json`. Consulta [la guía de compilación](docs/BUILD.md) para
+la ejecución local.
+
 ## Seguridad actual
 
 - El ID público es un localizador aleatorio, no una contraseña.
