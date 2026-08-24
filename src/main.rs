@@ -288,7 +288,10 @@ fn selected_data_dir(args: &Args) -> Result<PathBuf> {
     let executable = env::current_exe().context("could not locate the executable")?;
     let is_portable_package = executable
         .parent()
-        .is_some_and(|directory| directory.join("portable.json").is_file());
+        .is_some_and(|directory| directory.join("portable.json").is_file())
+        || executable
+            .file_stem()
+            .is_some_and(|name| name.eq_ignore_ascii_case("AnyMio-Portable"));
     if args.portable || is_portable_package {
         return portable_data_dir(&executable);
     }

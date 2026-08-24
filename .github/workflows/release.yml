@@ -65,22 +65,17 @@ jobs:
           $certificate = Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password (ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force)
           Get-ChildItem target/release/JRemote.exe, target/release/JRemoteUpdater.exe, installer/AnyMio-Setup-$($env:GITHUB_REF_NAME.TrimStart('v')).exe | ForEach-Object { Set-AuthenticodeSignature -FilePath $_ -Certificate $certificate | Out-Null }
           Remove-Item -LiteralPath $pfxPath -Force
-      - name: Build portable package
+      - name: Build single-file portable edition
         shell: pwsh
         run: |
           $version = $env:GITHUB_REF_NAME.TrimStart('v')
-          $packageName = "AnyMio-Portable-$version"
-          $packageRoot = Join-Path $env:RUNNER_TEMP $packageName
-          New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
-          Copy-Item portable\* $packageRoot -Recurse -Force
-          Copy-Item target\release\JRemote.exe, target\release\JRemoteUpdater.exe $packageRoot -Force
-          Compress-Archive -Path (Join-Path $packageRoot '*') -DestinationPath "portable/$packageName.zip" -Force
+          Copy-Item target\release\JRemote.exe "portable/AnyMio-Portable-$version.exe" -Force
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create $env:GITHUB_REF_NAME target/release/JRemote.exe target/release/JRemoteUpdater.exe installer/AnyMio-Setup-$($env:GITHUB_REF_NAME.TrimStart('v')).exe portable/AnyMio-Portable-$($env:GITHUB_REF_NAME.TrimStart('v')).zip --generate-notes --title "AnyMio $($env:GITHUB_REF_NAME)"
+          gh release create $env:GITHUB_REF_NAME target/release/JRemote.exe target/release/JRemoteUpdater.exe installer/AnyMio-Setup-$($env:GITHUB_REF_NAME.TrimStart('v')).exe portable/AnyMio-Portable-$($env:GITHUB_REF_NAME.TrimStart('v')).exe --generate-notes --title "AnyMio $($env:GITHUB_REF_NAME)"
       - name: Publish update manifest
         shell: pwsh
         env:

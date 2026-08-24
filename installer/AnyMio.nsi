@@ -1,5 +1,5 @@
 !ifndef VERSION
-  !define VERSION "0.2.9"
+  !define VERSION "0.3.0"
 !endif
 
 Unicode true

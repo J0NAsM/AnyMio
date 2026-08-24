@@ -33,9 +33,9 @@ Al iniciar, JRemote puede avisar de una versión nueva y mostrar el enlace de
 descarga. Consulta [la guía de actualizaciones](docs/ACTUALIZACIONES.md) para
 publicar el manifiesto y configurar su URL.
 
-Las versiones publicadas incluyen instalador y `AnyMio-Portable-X.Y.Z.zip`. La
-edición portable se extrae en cualquier carpeta escribible y se abre con
-`AnyMio-Portable.bat`; guarda todos sus datos en su propia subcarpeta `data`.
+Las versiones publicadas incluyen instalador y `AnyMio-Portable-X.Y.Z.exe`. La
+edición portable es un único archivo: cópialo a cualquier carpeta escribible o
+pendrive y ábrelo con doble clic; guarda sus datos en la subcarpeta `data`.
 Las versiones publicadas también incluyen `JRemote.exe` y `JRemoteUpdater.exe`. Cuando
 existe un manifiesto más nuevo con SHA-256 válido, la ventana local ofrece el
 botón **Descargar e instalar**; en consola también puede usarse

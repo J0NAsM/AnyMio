@@ -2,5 +2,6 @@
 /dist/
 /installer/*.exe
 /portable/*.zip
+/portable/*.exe
 /portable/data/
 *.log

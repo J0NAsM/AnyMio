@@ -12,10 +12,11 @@ actualización descargada y verificada.
 
 ## Edición portable
 
-Cada Release incluye `AnyMio-Portable-X.Y.Z.zip`. Extrae todo su contenido y
-abre `AnyMio-Portable.bat`. No instala accesos directos ni modifica el
-registro: todos los datos locales se guardan dentro de `data` junto al
-ejecutable. El ZIP debe mantenerse intacto, pues incluye el actualizador.
+Cada Release incluye `AnyMio-Portable-X.Y.Z.exe`. Copia ese único archivo a
+un pendrive o carpeta escribible y ábrelo con doble clic. No instala accesos
+directos ni modifica el registro: todos los datos locales se guardan dentro de
+`data` junto al ejecutable. Para actualizarlo, descarga el nuevo `.exe` y
+reemplaza el anterior.
 
 ## Instalador Windows
 
