@@ -69,6 +69,10 @@ copia previa como `JRemote.previous.exe` para recuperación manual si fuera
 necesario. El checksum protege la transferencia y errores de publicación, pero
 no sustituye la firma Authenticode: esta debe añadirse cuando haya un certificado.
 
+Si una actualización necesita revertirse, ejecuta `JRemote.exe --rollback-update`.
+El ayudante intercambia el binario actual con la copia previa y reinicia la
+aplicación; sólo actúa si existe una copia local de la versión anterior.
+
 ## Publicación automatizada
 
 El workflow `.github/workflows/release.yml` se ejecuta al subir una etiqueta

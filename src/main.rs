@@ -40,6 +40,9 @@ struct Args {
     /// Download, verify and install an available update, then restart JRemote.
     #[arg(long)]
     install_update: bool,
+    /// Restore the previous verified executable after an update.
+    #[arg(long)]
+    rollback_update: bool,
     /// Open the visible local AnyMio interface.
     #[arg(long)]
     ui: bool,
@@ -177,6 +180,9 @@ async fn main() -> Result<()> {
         if args.install_update {
             return install_update(available_update?);
         }
+        if args.rollback_update {
+            return rollback_update();
+        }
 
         let identity = DeviceIdentity::load_or_create(args.data_dir.clone())
             .context("could not load the local device identity")?;
@@ -258,6 +264,26 @@ fn install_update(release: Option<update::AvailableUpdate>) -> Result<()> {
     Ok(())
 }
 
+fn rollback_update() -> Result<()> {
+    let executable =
+        env::current_exe().context("could not determine the JRemote executable path")?;
+    let updater = executable
+        .parent()
+        .context("the JRemote executable has no parent directory")?
+        .join("JRemoteUpdater.exe");
+    if !updater.is_file() {
+        bail!("JRemoteUpdater.exe is missing; reinstall JRemote from its official release");
+    }
+    Command::new(updater)
+        .arg("--target")
+        .arg(executable)
+        .arg("--rollback")
+        .spawn()
+        .context("could not start the rollback helper")?;
+    println!("La versión anterior se restaurará al cerrar esta ventana.");
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -270,6 +296,7 @@ mod tests {
             data_dir: None,
             update_manifest_url: Some("https://example.com/update.json".into()),
             install_update: false,
+            rollback_update: false,
             ui: false,
             diagnostics: false,
             request_consent: None,
@@ -293,6 +320,7 @@ mod tests {
             data_dir: None,
             update_manifest_url: None,
             install_update: false,
+            rollback_update: false,
             ui: false,
             diagnostics: false,
             request_consent: None,

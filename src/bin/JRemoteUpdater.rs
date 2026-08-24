@@ -20,21 +20,70 @@ struct Args {
     #[arg(long)]
     target: PathBuf,
     #[arg(long)]
-    url: String,
+    url: Option<String>,
     #[arg(long)]
-    sha256: String,
+    sha256: Option<String>,
+    /// Restore JRemote.previous.exe instead of downloading a new update.
+    #[arg(long)]
+    rollback: bool,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
     validate_target(&args.target)?;
-    validate_https(&args.url)?;
-    validate_sha256(&args.sha256)?;
+    if args.rollback {
+        return rollback_and_restart(&args.target);
+    }
+    let url = args
+        .url
+        .context("--url is required unless --rollback is used")?;
+    let sha256 = args
+        .sha256
+        .context("--sha256 is required unless --rollback is used")?;
+    validate_https(&url)?;
+    validate_sha256(&sha256)?;
 
     let download_path = temporary_download_path(&args.target)?;
-    download_and_verify(&args.url, &args.sha256, &download_path).await?;
+    download_and_verify(&url, &sha256, &download_path).await?;
     replace_and_restart(&args.target, &download_path)
+}
+
+fn rollback_and_restart(target: &Path) -> Result<()> {
+    let backup = target.with_file_name("JRemote.previous.exe");
+    if !backup.is_file() {
+        bail!("there is no previous JRemote executable to restore");
+    }
+    let staged = target.with_file_name("JRemote.rollback-staged.exe");
+    for attempt in 1..=REPLACE_RETRIES {
+        match rollback_once(target, &backup, &staged) {
+            Ok(()) => {
+                Command::new(target)
+                    .spawn()
+                    .context("the restored application could not be started")?;
+                return Ok(());
+            }
+            Err(error) if attempt < REPLACE_RETRIES => {
+                std::thread::sleep(Duration::from_secs(1));
+                let _ = error;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    unreachable!("the retry loop always returns")
+}
+
+fn rollback_once(target: &Path, backup: &Path, staged: &Path) -> Result<()> {
+    if staged.exists() {
+        std::fs::remove_file(staged).context("could not remove stale rollback staging")?;
+    }
+    std::fs::rename(target, staged).context("JRemote is still running or cannot be replaced")?;
+    if let Err(error) = std::fs::rename(backup, target) {
+        std::fs::rename(staged, target).context("could not restore the current executable")?;
+        return Err(error).context("could not restore the previous executable");
+    }
+    std::fs::rename(staged, backup)
+        .context("could not retain the newer executable as rollback backup")
 }
 
 fn validate_target(target: &Path) -> Result<()> {
