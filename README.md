@@ -1,4 +1,4 @@
-# JRemote
+# AnyMio
 
 JRemote es un proyecto de escritorio remoto personal para Windows. Usa un relay propio para que host y cliente salgan hacia la infraestructura del propietario; el ID de nueve dígitos únicamente localiza al dispositivo y nunca concede acceso.
 
