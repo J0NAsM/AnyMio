@@ -1,10 +1,10 @@
 !ifndef VERSION
-  !define VERSION "0.2.7"
+  !define VERSION "0.2.8"
 !endif
 
 Unicode true
 Name "AnyMio ${VERSION}"
-OutFile "installer\AnyMio-Setup-${VERSION}.exe"
+OutFile "AnyMio-Setup-${VERSION}.exe"
 InstallDir "$LOCALAPPDATA\AnyMio"
 RequestExecutionLevel user
 ShowInstDetails show
