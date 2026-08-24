@@ -1,6 +1,7 @@
 [package]
 name = "jremote"
 version = "0.1.0"
+default-run = "JRemote"
 edition = "2024"
 rust-version = "1.97"
 description = "Visible, owner-operated remote desktop relay and endpoint"
