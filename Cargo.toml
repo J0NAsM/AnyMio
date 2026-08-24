@@ -1,6 +1,6 @@
 [package]
 name = "jremote"
-version = "0.2.4"
+version = "0.2.5"
 default-run = "JRemote"
 edition = "2024"
 rust-version = "1.97"
