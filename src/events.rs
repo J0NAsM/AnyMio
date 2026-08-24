@@ -1,6 +1,6 @@
 use std::{
     fs::OpenOptions,
-    io::Write,
+    io::{BufRead, BufReader, Write},
     path::Path,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -35,4 +35,19 @@ pub fn append(dir: &Path, kind: &str, detail: &str) -> Result<()> {
     let mut file = OpenOptions::new().create(true).append(true).open(path)?;
     writeln!(file, "{}", serde_json::to_string(&event)?)?;
     Ok(())
+}
+
+pub fn recent(dir: &Path, limit: usize) -> Result<Vec<Event>> {
+    let path = dir.join(EVENTS_FILE);
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let reader = BufReader::new(std::fs::File::open(path)?);
+    let mut events = Vec::new();
+    for line in reader.lines() {
+        if let Ok(event) = serde_json::from_str::<Event>(&line?) {
+            events.push(event);
+        }
+    }
+    Ok(events.into_iter().rev().take(limit).collect())
 }

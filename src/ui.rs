@@ -201,6 +201,13 @@ impl eframe::App for AnyMioApp {
                 ui.label(status);
             }
             ui.separator();
+            ui.heading("Actividad reciente");
+            match events::recent(&self.data_dir, 5) {
+                Ok(events) if events.is_empty() => { ui.label("Todavía no hay actividad registrada."); }
+                Ok(events) => { for event in events { ui.label(format!("{}: {}", event.kind, event.detail)); } }
+                Err(error) => { ui.label(format!("No se pudo leer la actividad: {error}")); }
+            }
+            ui.separator();
             ui.colored_label(
                 egui::Color32::YELLOW,
                 "No hay sesión remota activa. El acceso remoto requiere consentimiento y cifrado E2E antes de habilitarse.",
