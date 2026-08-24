@@ -191,6 +191,13 @@ impl eframe::App for AnyMioApp {
                     }
                 }
             }
+            if let Some(notes) = self
+                .available_update
+                .as_ref()
+                .and_then(|release| release.notes.as_deref())
+            {
+                ui.label(format!("Cambios: {notes}"));
+            }
             if ui.button("Guardar preferencias").clicked() {
                 self.save("update channel, language or startup preference changed");
             }
