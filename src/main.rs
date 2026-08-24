@@ -37,6 +37,8 @@ struct Args {
 // The publisher can set this at build time. A command-line URL or runtime
 // environment variable is useful for testing and takes precedence.
 const BUILT_IN_UPDATE_MANIFEST_URL: Option<&str> = option_env!("JREMOTE_UPDATE_MANIFEST_URL");
+const DEFAULT_UPDATE_MANIFEST_URL: &str =
+    "https://raw.githubusercontent.com/J0NAsM/AnyMio/main/update.json";
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -80,6 +82,7 @@ fn configured_update_manifest_url(args: &Args) -> Option<String> {
                 .filter(|value| !value.trim().is_empty())
         })
         .or_else(|| BUILT_IN_UPDATE_MANIFEST_URL.map(str::to_owned))
+        .or_else(|| Some(DEFAULT_UPDATE_MANIFEST_URL.to_owned()))
 }
 
 fn show_update_message(release: &update::AvailableUpdate) {

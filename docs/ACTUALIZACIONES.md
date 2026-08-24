@@ -1,15 +1,16 @@
 # Actualizaciones
 
-JRemote consulta opcionalmente un manifiesto de actualización al abrirse. Si la
+JRemote consulta el manifiesto público de este repositorio al abrirse. Si la
 versión publicada es mayor que la integrada en el ejecutable, muestra un mensaje
 con el enlace de descarga. La comprobación usa HTTPS, tiene un límite de tres
 segundos y un fallo de red nunca impide abrir la aplicación.
 
 ## Publicar una versión
 
-1. Compila `cargo build --release` y publica `target\\release\\JRemote.exe` en
-   GitHub Releases u otro servidor HTTPS que controles.
-2. Publica un archivo, por ejemplo `update.json`, con este contenido:
+1. Incrementa la versión en `Cargo.toml`, compila `cargo build --release` y
+   publica `target\\release\\JRemote.exe` en GitHub Releases con una etiqueta
+   como `v0.2.0`.
+2. Actualiza `update.json` en la rama `main` con este contenido:
 
 ```json
 {
@@ -31,10 +32,9 @@ $env:JREMOTE_UPDATE_MANIFEST_URL = "https://tu-dominio.example/update.json"
 cargo build --release
 ```
 
-Esa URL queda dentro de `JRemote.exe`; al abrirlo, todos los usuarios recibirán
-el aviso cuando publiques una versión mayor. La dirección no está presente en el
-repositorio para no publicar por accidente un servidor de actualizaciones que no
-controlas.
+Esa URL sustituye el manifiesto predeterminado de AnyMio y sirve para una versión
+privada o una bifurcación del proyecto. Al abrirlo, todos los usuarios recibirán
+el aviso cuando publiques una versión mayor.
 
 ## Probar otra URL
 
