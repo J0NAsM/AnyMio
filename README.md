@@ -39,6 +39,12 @@ botón **Descargar e instalar**; en consola también puede usarse
 `JRemote.exe --install-update`. El ayudante descarga, verifica y reemplaza el
 binario una vez que la aplicación se cierra.
 
+## Diagnóstico local
+
+`JRemote.exe --diagnostics` revisa de forma no intrusiva el manifiesto y la URL
+del relay. `JRemote.exe --show-events 20` muestra los últimos eventos locales;
+el registro no envía telemetría y la salida se limita a 200 registros.
+
 ## Automatización
 
 GitHub Actions ejecuta formato, lints, pruebas y una compilación de Windows en

@@ -62,6 +62,9 @@ struct Args {
     /// List local consent requests and their expiry status.
     #[arg(long)]
     list_consents: bool,
+    /// Show the newest local activity records (1 to 200 entries).
+    #[arg(long, value_name = "LIMIT")]
+    show_events: Option<usize>,
     /// Export the non-secret local configuration to a new JSON file.
     #[arg(long, value_name = "PATH")]
     export_config: Option<PathBuf>,
@@ -152,6 +155,15 @@ async fn main() -> Result<()> {
                     request.requester_device_id,
                     request.status,
                     request.expires_at_unix
+                );
+            }
+            return Ok(());
+        }
+        if let Some(limit) = args.show_events {
+            for event in events::recent(&data_dir, limit.clamp(1, 200))? {
+                println!(
+                    "{} | {} | {}",
+                    event.timestamp_unix, event.kind, event.detail
                 );
             }
             return Ok(());
@@ -325,6 +337,7 @@ mod tests {
             approve_consent: None,
             deny_consent: None,
             list_consents: false,
+            show_events: None,
             export_config: None,
             import_config: None,
             forget_device: None,
@@ -350,6 +363,7 @@ mod tests {
             approve_consent: None,
             deny_consent: None,
             list_consents: false,
+            show_events: None,
             export_config: None,
             import_config: None,
             forget_device: None,
