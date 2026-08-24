@@ -10,6 +10,10 @@ permissions:
 jobs:
   publish:
     runs-on: windows-latest
+    env:
+      # Keep every build product in the location consumed by NSIS and the
+      # release/upload steps, regardless of runner defaults.
+      CARGO_TARGET_DIR: target
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,8 +34,17 @@ jobs:
           cargo fmt --check
           cargo clippy --locked --all-targets -- -D warnings
           cargo test --locked --all-targets
-          cargo build --locked --release
+          cargo build --locked --release --bin JRemote --bin JRemoteUpdater
           cargo build --locked --release --bin JRemoteManifestSigner
+          $requiredArtifacts = @(
+            'target/release/JRemote.exe',
+            'target/release/JRemoteUpdater.exe',
+            'target/release/JRemoteManifestSigner.exe'
+          )
+          $missingArtifacts = $requiredArtifacts | Where-Object { -not (Test-Path -LiteralPath $_) }
+          if ($missingArtifacts) {
+            throw "Missing release artifact(s): $($missingArtifacts -join ', ')"
+          }
       - name: Build installer
         shell: pwsh
         run: |
