@@ -5,6 +5,7 @@ use eframe::egui;
 
 use crate::{
     config::{AppConfig, KnownDevice, Language, UpdateChannel},
+    consent::ConsentStore,
     events,
     identity::DeviceIdentity,
     update,
@@ -27,6 +28,7 @@ pub fn run(identity: DeviceIdentity, config: AppConfig, data_dir: PathBuf) -> Re
                 relay_draft,
                 device_id_draft: String::new(),
                 device_name_draft: String::new(),
+                consent_device_draft: String::new(),
                 status: None,
             }))
         }),
@@ -41,6 +43,7 @@ struct AnyMioApp {
     relay_draft: String,
     device_id_draft: String,
     device_name_draft: String,
+    consent_device_draft: String,
     status: Option<String>,
 }
 
@@ -125,6 +128,31 @@ impl eframe::App for AnyMioApp {
             });
             for device in &self.config.known_devices {
                 ui.label(format!("{} — {}", device.display_name, device.public_id));
+            }
+            ui.separator();
+            ui.heading("Consentimiento local");
+            ui.horizontal(|ui| {
+                ui.label("ID solicitante");
+                ui.text_edit_singleline(&mut self.consent_device_draft);
+                if ui.button("Crear solicitud").clicked() {
+                    match ConsentStore::load(&self.data_dir).and_then(|mut store| {
+                        let id = store.request(self.consent_device_draft.trim().to_owned())?;
+                        store.save(&self.data_dir)?;
+                        Ok(id)
+                    }) {
+                        Ok(id) => {
+                            let _ = events::append(&self.data_dir, "consent_requested", &id.to_string());
+                            self.consent_device_draft.clear();
+                            self.status = Some(format!("Solicitud creada: {id}"));
+                        }
+                        Err(error) => self.status = Some(format!("No se pudo crear la solicitud: {error}")),
+                    }
+                }
+            });
+            if let Ok(store) = ConsentStore::load(&self.data_dir) {
+                for request in store.requests.iter().rev().take(5) {
+                    ui.label(format!("{} — {:?}", request.requester_device_id, request.status));
+                }
             }
             if let Some(status) = &self.status {
                 ui.separator();
