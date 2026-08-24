@@ -162,7 +162,8 @@ async fn main() -> Result<()> {
         if args.ui {
             let identity = DeviceIdentity::load_or_create(args.data_dir.clone())
                 .context("could not load the local device identity")?;
-            return ui::run(identity, config, data_dir);
+            let manifest_url = configured_update_manifest_url(&args, &config.update_channel);
+            return ui::run(identity, config, data_dir, manifest_url);
         }
         let available_update = if config.check_updates_at_startup || args.install_update {
             update::check(&configured_update_manifest_url(

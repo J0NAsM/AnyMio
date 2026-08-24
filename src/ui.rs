@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    sync::mpsc::{self, Receiver},
+};
 
 use anyhow::Result;
 use eframe::egui;
@@ -11,7 +14,12 @@ use crate::{
     update,
 };
 
-pub fn run(identity: DeviceIdentity, config: AppConfig, data_dir: PathBuf) -> Result<()> {
+pub fn run(
+    identity: DeviceIdentity,
+    config: AppConfig,
+    data_dir: PathBuf,
+    manifest_url: String,
+) -> Result<()> {
     let relay_draft = config.relay_url.clone().unwrap_or_default();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([760.0, 600.0]),
@@ -29,6 +37,8 @@ pub fn run(identity: DeviceIdentity, config: AppConfig, data_dir: PathBuf) -> Re
                 device_id_draft: String::new(),
                 device_name_draft: String::new(),
                 consent_device_draft: String::new(),
+                manifest_url,
+                update_result: None,
                 status: None,
             }))
         }),
@@ -44,6 +54,8 @@ struct AnyMioApp {
     device_id_draft: String,
     device_name_draft: String,
     consent_device_draft: String,
+    manifest_url: String,
+    update_result: Option<Receiver<String>>,
     status: Option<String>,
 }
 
@@ -57,10 +69,37 @@ impl AnyMioApp {
             Err(error) => self.status = Some(format!("No se pudo guardar: {error}")),
         }
     }
+
+    fn check_updates(&mut self) {
+        let url = self.manifest_url.clone();
+        let (sender, receiver) = mpsc::channel();
+        std::thread::spawn(move || {
+            let message = match tokio::runtime::Runtime::new() {
+                Ok(runtime) => match runtime.block_on(update::check(&url)) {
+                    Ok(Some(release)) => format!("Nueva versión {} disponible.", release.version),
+                    Ok(None) => "Ya tienes la versión más reciente.".into(),
+                    Err(error) => format!("No se pudo comprobar: {error}"),
+                },
+                Err(error) => format!("No se pudo iniciar la comprobación: {error}"),
+            };
+            let _ = sender.send(message);
+        });
+        self.status = Some("Buscando actualizaciones…".into());
+        self.update_result = Some(receiver);
+    }
 }
 
 impl eframe::App for AnyMioApp {
     fn update(&mut self, context: &egui::Context, _: &mut eframe::Frame) {
+        if let Some(receiver) = &self.update_result {
+            if let Ok(message) = receiver.try_recv() {
+                let _ = events::append(&self.data_dir, "update_check_manual", &message);
+                self.status = Some(message);
+                self.update_result = None;
+            } else {
+                context.request_repaint_after(std::time::Duration::from_millis(100));
+            }
+        }
         egui::TopBottomPanel::top("header").show(context, |ui| {
             ui.heading("AnyMio");
             ui.label("Control remoto personal — estado local visible");
@@ -89,6 +128,9 @@ impl eframe::App for AnyMioApp {
                     ui.selectable_value(&mut self.config.language, Language::English, "English");
                 });
             ui.label("Las instalaciones de versiones verificadas se realizan con --install-update.");
+            if ui.button("Buscar actualizaciones ahora").clicked() && self.update_result.is_none() {
+                self.check_updates();
+            }
             ui.separator();
 
             ui.heading("Relay");
