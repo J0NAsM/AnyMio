@@ -1,5 +1,6 @@
 {
-  "version": "0.1.0",
-  "url": "https://github.com/J0NAsM/AnyMio/releases/download/v0.1.0/JRemote.exe",
-  "notes": "Versión inicial con aviso de actualizaciones."
+  "version": "0.2.8",
+  "url": "https://github.com/J0NAsM/AnyMio/releases/download/v0.2.8/JRemote.exe",
+  "sha256": "1a97f7307de853160e2ddf84d08c20c91333a5d1d8c373feb212055bc29edb65",
+  "notes": "Actualización automática publicada desde v0.2.8."
 }
