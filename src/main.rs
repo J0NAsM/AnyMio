@@ -1,4 +1,5 @@
 mod config;
+mod consent;
 mod diagnostics;
 mod events;
 mod identity;
@@ -45,6 +46,18 @@ struct Args {
     /// Check update hosting and relay configuration without changing anything.
     #[arg(long)]
     diagnostics: bool,
+    /// Create a local consent request for a future remote session.
+    #[arg(long, value_name = "DEVICE_ID")]
+    request_consent: Option<String>,
+    /// Approve a displayed local consent request.
+    #[arg(long, value_name = "REQUEST_ID")]
+    approve_consent: Option<uuid::Uuid>,
+    /// Deny a displayed local consent request.
+    #[arg(long, value_name = "REQUEST_ID")]
+    deny_consent: Option<uuid::Uuid>,
+    /// List local consent requests and their expiry status.
+    #[arg(long)]
+    list_consents: bool,
 }
 
 // The publisher can set this at build time. A command-line URL or runtime
@@ -76,6 +89,40 @@ async fn main() -> Result<()> {
             "application_started",
             "JRemote was opened locally",
         );
+        if let Some(device_id) = args.request_consent.as_deref() {
+            let mut store = consent::ConsentStore::load(&data_dir)?;
+            let request_id = store.request(device_id.to_owned())?;
+            store.save(&data_dir)?;
+            let _ = events::append(&data_dir, "consent_requested", &request_id.to_string());
+            println!("Solicitud local creada: {request_id}");
+            return Ok(());
+        }
+        if let Some(request_id) = args.approve_consent.or(args.deny_consent) {
+            let approved = args.approve_consent.is_some();
+            let mut store = consent::ConsentStore::load(&data_dir)?;
+            store.resolve(request_id, approved)?;
+            store.save(&data_dir)?;
+            let status = if approved { "approved" } else { "denied" };
+            let _ = events::append(
+                &data_dir,
+                "consent_resolved",
+                &format!("{request_id}: {status}"),
+            );
+            println!("Solicitud {request_id}: {status}");
+            return Ok(());
+        }
+        if args.list_consents {
+            for request in consent::ConsentStore::load(&data_dir)?.requests {
+                println!(
+                    "{} | {} | {:?} | vence {}",
+                    request.id,
+                    request.requester_device_id,
+                    request.status,
+                    request.expires_at_unix
+                );
+            }
+            return Ok(());
+        }
         if args.diagnostics {
             for result in diagnostics::run(
                 &configured_update_manifest_url(&args),
@@ -196,6 +243,10 @@ mod tests {
             install_update: false,
             ui: false,
             diagnostics: false,
+            request_consent: None,
+            approve_consent: None,
+            deny_consent: None,
+            list_consents: false,
         };
         assert_eq!(
             configured_update_manifest_url(&args),
