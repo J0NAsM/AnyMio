@@ -24,7 +24,9 @@ if ($SetPackageVersion) {
 
 Push-Location $projectRoot
 try {
-    cargo test
+    cargo fmt --check
+    cargo clippy --all-targets -- -D warnings
+    cargo test --all-targets
     cargo build --release
 } finally {
     Pop-Location
@@ -32,6 +34,9 @@ try {
 
 if (-not (Test-Path -LiteralPath $releaseExe -PathType Leaf)) {
     throw 'JRemote.exe was not generated.'
+}
+if (-not (Test-Path -LiteralPath (Join-Path $projectRoot 'target\release\JRemoteUpdater.exe') -PathType Leaf)) {
+    throw 'JRemoteUpdater.exe was not generated.'
 }
 
 $tag = "v$Version"
