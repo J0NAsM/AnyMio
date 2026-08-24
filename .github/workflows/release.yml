@@ -75,7 +75,12 @@ jobs:
           git fetch origin main
           git checkout main
           [System.IO.File]::WriteAllText("update.json", "$manifest`n", [System.Text.UTF8Encoding]::new($false))
-          if (-not [string]::IsNullOrWhiteSpace($env:UPDATE_MANIFEST_SIGNING_PRIVATE_KEY)) {
+          if ([string]::IsNullOrWhiteSpace($env:UPDATE_MANIFEST_SIGNING_PRIVATE_KEY)) {
+            if (-not [string]::IsNullOrWhiteSpace($env:UPDATE_MANIFEST_PUBLIC_KEY)) {
+              throw 'UPDATE_MANIFEST_SIGNING_PRIVATE_KEY must be configured when UPDATE_MANIFEST_PUBLIC_KEY is set.'
+            }
+            Write-Host 'No manifest signing keys configured; publishing a SHA-256 verified manifest only.'
+          } else {
             if ([string]::IsNullOrWhiteSpace($env:UPDATE_MANIFEST_PUBLIC_KEY)) {
               throw 'UPDATE_MANIFEST_PUBLIC_KEY must be configured when signing the update manifest.'
             }
@@ -87,8 +92,6 @@ jobs:
             } finally {
               Remove-Item -LiteralPath $privateKeyPath -Force -ErrorAction SilentlyContinue
             }
-          } else {
-            Write-Host 'No manifest signing key configured; publishing a SHA-256 verified manifest only.'
           }
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

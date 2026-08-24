@@ -11,6 +11,13 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+if (-not [string]::IsNullOrWhiteSpace($env:JREMOTE_UPDATE_MANIFEST_PUBLIC_KEY) -and [string]::IsNullOrWhiteSpace($ManifestSigningPrivateKeyFile)) {
+    throw 'ManifestSigningPrivateKeyFile is required when JREMOTE_UPDATE_MANIFEST_PUBLIC_KEY is set.'
+}
+if (-not [string]::IsNullOrWhiteSpace($ManifestSigningPrivateKeyFile) -and [string]::IsNullOrWhiteSpace($env:JREMOTE_UPDATE_MANIFEST_PUBLIC_KEY)) {
+    throw 'JREMOTE_UPDATE_MANIFEST_PUBLIC_KEY must be set when signing update.json.'
+}
+
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $cargoToml = Join-Path $projectRoot 'Cargo.toml'
 $releaseExe = Join-Path $projectRoot 'target\release\JRemote.exe'
@@ -51,9 +58,6 @@ $manifest = [ordered]@{
 [System.IO.File]::WriteAllText($manifestPath, "$manifest`n", [System.Text.UTF8Encoding]::new($false))
 
 if (-not [string]::IsNullOrWhiteSpace($ManifestSigningPrivateKeyFile)) {
-    if ([string]::IsNullOrWhiteSpace($env:JREMOTE_UPDATE_MANIFEST_PUBLIC_KEY)) {
-        throw 'JREMOTE_UPDATE_MANIFEST_PUBLIC_KEY must be set when signing update.json.'
-    }
     Push-Location $projectRoot
     try {
         cargo build --locked --release --bin JRemoteManifestSigner
