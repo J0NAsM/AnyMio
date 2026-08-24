@@ -11,6 +11,7 @@ use crate::{
     consent::{ConsentStatus, ConsentStore},
     events,
     identity::DeviceIdentity,
+    session_history::{self, AccessAttemptStatus, SessionHistory},
     update,
 };
 
@@ -101,21 +102,40 @@ impl AnyMioApp {
 
     fn resolve_consent(&mut self, id: uuid::Uuid, approved: bool) {
         match ConsentStore::load(&self.data_dir).and_then(|mut store| {
-            store.resolve(id, approved)?;
-            store.save(&self.data_dir)
+            let request = store.resolve(id, approved)?;
+            store.save(&self.data_dir)?;
+            Ok(request)
         }) {
-            Ok(()) => {
+            Ok(request) => {
                 let action = if approved {
                     "consent_approved"
                 } else {
                     "consent_denied"
                 };
-                let _ = events::append(&self.data_dir, action, &id.to_string());
-                self.status = Some(if approved {
-                    "Solicitud aprobada localmente.".into()
-                } else {
-                    "Solicitud rechazada localmente.".into()
-                });
+                match session_history::record(
+                    &self.data_dir,
+                    request.id,
+                    request.requester_device_id,
+                    if approved {
+                        AccessAttemptStatus::Approved
+                    } else {
+                        AccessAttemptStatus::Denied
+                    },
+                ) {
+                    Ok(()) => {
+                        let _ = events::append(&self.data_dir, action, &id.to_string());
+                        self.status = Some(if approved {
+                            "Solicitud aprobada localmente.".into()
+                        } else {
+                            "Solicitud rechazada localmente.".into()
+                        });
+                    }
+                    Err(error) => {
+                        self.status = Some(format!(
+                            "La solicitud se resolvió, pero no se pudo auditar: {error}"
+                        ));
+                    }
+                }
             }
             Err(error) => self.status = Some(format!("No se pudo resolver la solicitud: {error}")),
         }
@@ -260,9 +280,16 @@ impl eframe::App for AnyMioApp {
                 ui.label("ID solicitante");
                 ui.text_edit_singleline(&mut self.consent_device_draft);
                 if ui.button("Crear solicitud").clicked() {
+                    let requester = self.consent_device_draft.trim().to_owned();
                     match ConsentStore::load(&self.data_dir).and_then(|mut store| {
-                        let id = store.request(self.consent_device_draft.trim().to_owned())?;
+                        let id = store.request(requester.clone())?;
                         store.save(&self.data_dir)?;
+                        session_history::record(
+                            &self.data_dir,
+                            id,
+                            requester,
+                            AccessAttemptStatus::Requested,
+                        )?;
                         Ok(id)
                     }) {
                         Ok(id) => {
@@ -292,6 +319,24 @@ impl eframe::App for AnyMioApp {
             }
             if let Some((id, approved)) = consent_action {
                 self.resolve_consent(id, approved);
+            }
+            ui.separator();
+            ui.heading("Historial de solicitudes");
+            match SessionHistory::load(&self.data_dir) {
+                Ok(history) if history.entries.is_empty() => {
+                    ui.label("Todavía no hay solicitudes registradas.");
+                }
+                Ok(history) => {
+                    for attempt in history.recent(5) {
+                        ui.label(format!(
+                            "{} — {:?}",
+                            attempt.requester_device_id, attempt.status
+                        ));
+                    }
+                }
+                Err(error) => {
+                    ui.label(format!("No se pudo leer el historial: {error}"));
+                }
             }
             if let Some(status) = &self.status {
                 ui.separator();

@@ -76,7 +76,7 @@ impl ConsentStore {
         Ok(id)
     }
 
-    pub fn resolve(&mut self, id: Uuid, approved: bool) -> Result<()> {
+    pub fn resolve(&mut self, id: Uuid, approved: bool) -> Result<ConsentRequest> {
         self.expire_old(now()?);
         let request = self
             .requests
@@ -91,7 +91,7 @@ impl ConsentStore {
         } else {
             ConsentStatus::Denied
         };
-        Ok(())
+        Ok(request.clone())
     }
 
     fn expire_old(&mut self, timestamp: u64) {

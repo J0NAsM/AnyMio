@@ -44,6 +44,9 @@ binario una vez que la aplicación se cierra.
 `JRemote.exe --diagnostics` revisa de forma no intrusiva el manifiesto y la URL
 del relay. `JRemote.exe --show-events 20` muestra los últimos eventos locales;
 el registro no envía telemetría y la salida se limita a 200 registros.
+`JRemote.exe --show-access-history 20` muestra el ciclo local de consentimiento
+(solicitado, aprobado o rechazado), también limitado a 200 entradas. No equivale
+a una sesión de escritorio: esa función requiere el canal E2E aún no disponible.
 
 ## Automatización
 

@@ -8,6 +8,7 @@ mod relay;
 // Used by the future unattended-access flow; keep it compiled and covered by unit tests.
 #[allow(dead_code)]
 mod security;
+mod session_history;
 mod ui;
 mod update;
 mod update_cache;
@@ -65,6 +66,9 @@ struct Args {
     /// Show the newest local activity records (1 to 200 entries).
     #[arg(long, value_name = "LIMIT")]
     show_events: Option<usize>,
+    /// Show the consent lifecycle audit history (1 to 200 entries).
+    #[arg(long, value_name = "LIMIT")]
+    show_access_history: Option<usize>,
     /// Export the non-secret local configuration to a new JSON file.
     #[arg(long, value_name = "PATH")]
     export_config: Option<PathBuf>,
@@ -129,6 +133,12 @@ async fn main() -> Result<()> {
             let mut store = consent::ConsentStore::load(&data_dir)?;
             let request_id = store.request(device_id.to_owned())?;
             store.save(&data_dir)?;
+            session_history::record(
+                &data_dir,
+                request_id,
+                device_id,
+                session_history::AccessAttemptStatus::Requested,
+            )?;
             let _ = events::append(&data_dir, "consent_requested", &request_id.to_string());
             println!("Solicitud local creada: {request_id}");
             return Ok(());
@@ -136,9 +146,19 @@ async fn main() -> Result<()> {
         if let Some(request_id) = args.approve_consent.or(args.deny_consent) {
             let approved = args.approve_consent.is_some();
             let mut store = consent::ConsentStore::load(&data_dir)?;
-            store.resolve(request_id, approved)?;
+            let request = store.resolve(request_id, approved)?;
             store.save(&data_dir)?;
             let status = if approved { "approved" } else { "denied" };
+            session_history::record(
+                &data_dir,
+                request.id,
+                request.requester_device_id,
+                if approved {
+                    session_history::AccessAttemptStatus::Approved
+                } else {
+                    session_history::AccessAttemptStatus::Denied
+                },
+            )?;
             let _ = events::append(
                 &data_dir,
                 "consent_resolved",
@@ -164,6 +184,20 @@ async fn main() -> Result<()> {
                 println!(
                     "{} | {} | {}",
                     event.timestamp_unix, event.kind, event.detail
+                );
+            }
+            return Ok(());
+        }
+        if let Some(limit) = args.show_access_history {
+            for attempt in
+                session_history::SessionHistory::load(&data_dir)?.recent(limit.clamp(1, 200))
+            {
+                println!(
+                    "{} | {} | {:?} | {}",
+                    attempt.timestamp_unix,
+                    attempt.requester_device_id,
+                    attempt.status,
+                    attempt.consent_id
                 );
             }
             return Ok(());
@@ -338,6 +372,7 @@ mod tests {
             deny_consent: None,
             list_consents: false,
             show_events: None,
+            show_access_history: None,
             export_config: None,
             import_config: None,
             forget_device: None,
@@ -364,6 +399,7 @@ mod tests {
             deny_consent: None,
             list_consents: false,
             show_events: None,
+            show_access_history: None,
             export_config: None,
             import_config: None,
             forget_device: None,

@@ -13,6 +13,10 @@ El endpoint actual genera o recupera una identidad de `%LOCALAPPDATA%/JRemote/JR
 
 No hay todavía canal de datos de sesión. En consecuencia el relay sólo procesa señalización y no existe captura de pantalla, codec, viewer ni inyección de entrada. La futura sesión deberá ser un canal cifrado de extremo a extremo independiente de la señalización: el relay podrá asociar conexiones por un token de sesión, sin descifrar video ni eventos de entrada.
 
+El archivo local `session-history.json` conserva hasta 200 eventos del ciclo de
+consentimiento (solicitud, aprobación o rechazo). Es una pista de auditoría y
+no implica que se haya iniciado una sesión de escritorio.
+
 ## Próxima arquitectura necesaria para V1
 
 1. GUI visible de host/cliente y solicitud local de consentimiento.
