@@ -1,4 +1,5 @@
 mod config;
+mod events;
 mod identity;
 mod protocol;
 mod relay;
@@ -66,6 +67,11 @@ async fn main() -> Result<()> {
     } else {
         let data_dir = identity::application_data_dir(args.data_dir.clone())?;
         let config = config::AppConfig::load_or_create(&data_dir)?;
+        let _ = events::append(
+            &data_dir,
+            "application_started",
+            "JRemote was opened locally",
+        );
         if args.ui {
             let identity = DeviceIdentity::load_or_create(args.data_dir.clone())
                 .context("could not load the local device identity")?;
@@ -88,9 +94,15 @@ async fn main() -> Result<()> {
         println!("No remote session is active.");
         println!("The GUI/capture endpoint is not yet included in this build.");
         match available_update {
-            Ok(Some(release)) => show_update_message(&release),
+            Ok(Some(release)) => {
+                let _ = events::append(&data_dir, "update_available", &release.version);
+                show_update_message(&release)
+            }
             Ok(None) => {}
-            Err(error) => tracing::debug!(%error, "update check failed"),
+            Err(error) => {
+                let _ = events::append(&data_dir, "update_check_failed", &error.to_string());
+                tracing::debug!(%error, "update check failed")
+            }
         }
         Ok(())
     }
