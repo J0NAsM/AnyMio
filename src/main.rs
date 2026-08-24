@@ -10,6 +10,7 @@ mod relay;
 mod security;
 mod ui;
 mod update;
+mod update_cache;
 
 use std::{env, net::SocketAddr, path::PathBuf, process::Command};
 
@@ -178,12 +179,18 @@ async fn main() -> Result<()> {
             let manifest_url = configured_update_manifest_url(&args, &config.update_channel);
             return ui::run(identity, config, data_dir, manifest_url);
         }
-        let available_update = if config.check_updates_at_startup || args.install_update {
-            update::check(&configured_update_manifest_url(
+        let check_at_startup = config.check_updates_at_startup
+            && !update_cache::checked_current_recently(&data_dir).unwrap_or(false);
+        let available_update = if check_at_startup || args.install_update {
+            let result = update::check(&configured_update_manifest_url(
                 &args,
                 &config.update_channel,
             ))
-            .await
+            .await;
+            if result.as_ref().is_ok_and(Option::is_none) {
+                let _ = update_cache::mark_current(&data_dir);
+            }
+            result
         } else {
             Ok(None)
         };

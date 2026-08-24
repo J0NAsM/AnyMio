@@ -5,6 +5,10 @@ versión publicada es mayor que la integrada en el ejecutable, muestra un mensaj
 con el enlace de descarga. La comprobación usa HTTPS, tiene un límite de tres
 segundos y un fallo de red nunca impide abrir la aplicación.
 
+Después de una comprobación correcta sin versión nueva, JRemote conserva un
+registro local durante seis horas para no repetir solicitudes al iniciar. La
+búsqueda manual y `--install-update` omiten esa caché.
+
 El repositorio debe ser **público** para que los equipos de los usuarios puedan
 leer `update.json` sin una cuenta de GitHub. Si prefieres mantener el código
 privado, publica ese archivo y los instaladores en otro hosting HTTPS público.
