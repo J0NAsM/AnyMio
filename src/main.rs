@@ -5,6 +5,7 @@ mod relay;
 // Used by the future unattended-access flow; keep it compiled and covered by unit tests.
 #[allow(dead_code)]
 mod security;
+mod ui;
 mod update;
 
 use std::{env, net::SocketAddr, path::PathBuf, process::Command};
@@ -36,6 +37,9 @@ struct Args {
     /// Download, verify and install an available update, then restart JRemote.
     #[arg(long)]
     install_update: bool,
+    /// Open the visible local AnyMio interface.
+    #[arg(long)]
+    ui: bool,
 }
 
 // The publisher can set this at build time. A command-line URL or runtime
@@ -62,6 +66,11 @@ async fn main() -> Result<()> {
     } else {
         let data_dir = identity::application_data_dir(args.data_dir.clone())?;
         let config = config::AppConfig::load_or_create(&data_dir)?;
+        if args.ui {
+            let identity = DeviceIdentity::load_or_create(args.data_dir.clone())
+                .context("could not load the local device identity")?;
+            return ui::run(identity, config);
+        }
         let available_update = if config.check_updates_at_startup || args.install_update {
             update::check(&configured_update_manifest_url(&args)).await
         } else {
@@ -152,6 +161,7 @@ mod tests {
             data_dir: None,
             update_manifest_url: Some("https://example.com/update.json".into()),
             install_update: false,
+            ui: false,
         };
         assert_eq!(
             configured_update_manifest_url(&args),
