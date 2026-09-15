@@ -1,3 +1,7 @@
+<!-- BEGIN ECOSYSTEM ENTRY -->
+Entrada vigente: [JRemote / AnyMio — contexto](<.context/contexto.md>). Identidad, alcance, reglas y comandos se consultan desde esa entrada. La documentación histórica se conserva; sus fotografías de estado no acreditan la situación actual.
+<!-- END ECOSYSTEM ENTRY -->
+
 # AnyMio
 
 JRemote es un proyecto de escritorio remoto personal para Windows. Usa un relay propio para que host y cliente salgan hacia la infraestructura del propietario; el ID de nueve dígitos únicamente localiza al dispositivo y nunca concede acceso.

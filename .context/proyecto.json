@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "PROJECT_ID": "anymio",
+  "PROJECT_NAME": "JRemote / AnyMio",
+  "TYPE": "desktop",
+  "TECH_STACK": "Rust, eframe, Tokio; relay propio; sin DB identificada",
+  "TECH_STACK_SOURCE": [
+    "Cargo.toml"
+  ],
+  "ENVIRONMENT": "NO DETERMINADO",
+  "STATUS": "NO DETERMINADO",
+  "OBSERVED_STATE": "Prototipo de escritorio remoto Windows; captura/control reales pendientes según README.",
+  "VERSION_SOURCE": [
+    "Cargo.toml"
+  ],
+  "LAST_CONTEXT_UPDATE": "2026-09-14",
+  "LAST_VALIDATION": {
+    "date": "NO DETERMINADO",
+    "revision": "NO DETERMINADO",
+    "command": "NO DETERMINADO",
+    "result": "NO DETERMINADO"
+  },
+  "LAST_DEPLOY": "NO DETERMINADO",
+  "EXTERNAL_DEPENDENCIES": "Relay; distribución Windows y compilador Rust declarado en Cargo.toml.",
+  "CONFIG_SOURCES": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/release.yml"
+  ],
+  "SOURCE_HASHES": {
+    "Cargo.toml": "11a796d2765a67d5e4ae49a7f17c455868af4c6670f4b472c9fd8ad546c1c724",
+    ".github/workflows/ci.yml": "ea41e34bcfe3c7d3b8344e9f50db2477bf1a4017ef348e758d4ae3d2d3b0ad52",
+    ".github/workflows/release.yml": "71fea74ba23a189375cd4c9b76159ddfc4e84efc267d9b3c6f8a94d0cf4584ce"
+  },
+  "VAULTS_ROOT_RELATIVE": "../Vaults/jmartinez"
+}
